@@ -15,17 +15,15 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"time"
 
+	"github.com/google/uuid"
+
+	"k8s.io/api/certificates/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-
-	"k8s.io/api/certificates/v1beta1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/goombaio/namegenerator"
 )
 
 var (
@@ -63,9 +61,7 @@ func main() {
 	}
 
 	certV1Client := clientset.CertificatesV1beta1()
-	seed := time.Now().UTC().UnixNano()
-	nameGenerator := namegenerator.NewNameGenerator(seed)
-	name := nameGenerator.Generate()
+	name := uuid.New().String()
 
 	log.Println(name)
 
