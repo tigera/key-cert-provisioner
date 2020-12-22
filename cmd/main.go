@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -9,26 +10,35 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/json"
 	"encoding/pem"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 
-	"github.com/google/uuid"
+	v1beta12 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1"
 
 	"k8s.io/api/certificates/v1beta1"
 	v1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 )
 
 var (
 	masterURL  string
 	kubeconfig string
+)
+
+const (
+	// Constants for creating the tigera-apiserver
+	apiServerNamespace = "tigera-system"
+	apiServiceName     = "tigera-api"
+	calicoAPIGroup     = "projectcalico.org"
 )
 
 func main() {
@@ -52,6 +62,16 @@ func main() {
 	commonName := os.Getenv("COMMON_NAME")
 	emailAddress := os.Getenv("EMAIL_ADDRESS")
 	secretLocation := os.Getenv("SECRET_LOCATION")
+	keyName := os.Getenv("KEY_NAME")
+	podIP := os.Getenv("POD_IP")
+	if keyName == "" {
+		keyName = "key.key"
+	}
+	certName := os.Getenv("CERT_NAME")
+	if certName == "" {
+		certName = "cert.crt"
+	}
+	registerApiserver := os.Getenv("REGISTER_APISERVER") == "true"
 	if secretLocation == "" {
 		log.Fatalf("environment variable SECRET_LOCATION cannot be empty.")
 	}
@@ -61,14 +81,14 @@ func main() {
 	}
 
 	certV1Client := clientset.CertificatesV1beta1()
-	name := uuid.New().String()
+	name := fmt.Sprintf("%s-%s-%s", os.Getenv("POD_NAMESPACE"), os.Getenv("POD_NAME"), string([]rune(os.Getenv("POD_UID"))[0:6]))
 
 	log.Println(name)
 
-	csrPem, err := createCSR(commonName, emailAddress, signatureAlgorithm, privateKey)
+	csrPem, err := createCSR(commonName, emailAddress, podIP, signatureAlgorithm, privateKey)
 	csr := &v1beta1.CertificateSigningRequest{
-		TypeMeta:   metaV1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
-		ObjectMeta: metaV1.ObjectMeta{Name: name},
+		TypeMeta:   metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: v1beta1.CertificateSigningRequestSpec{
 			Request:    csrPem,
 			SignerName: &signer,
@@ -79,24 +99,23 @@ func main() {
 		log.Fatalf("Unable to create x509 certificate request: %w", err)
 	}
 
-	created, err := certV1Client.CertificateSigningRequests().Create(ctx, csr, metaV1.CreateOptions{})
+	created, err := certV1Client.CertificateSigningRequests().Create(ctx, csr, metav1.CreateOptions{})
 	if err != nil {
 		log.Fatal("crashed while trying to create Kubernetes certificate signing request", err)
 	}
 	log.Printf("Created CSR: %v", created)
 
-	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metaV1.ListOptions{})
-
+	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metav1.ListOptions{})
 	ch := watchers.ResultChan()
 	log.Printf("Watching CSR until it has been signed and approved: %v", name)
 	for event := range ch {
-		csr, ok := event.Object.(*v1beta1.CertificateSigningRequest)
+		chcsr, ok := event.Object.(*v1beta1.CertificateSigningRequest)
 		if !ok {
 			log.Fatal("unexpected type in cert channel")
 		}
-		if csr.Name == name && csr.Status.Conditions != nil && csr.Status.Certificate != nil {
+		if chcsr.Name == name && chcsr.Status.Conditions != nil && chcsr.Status.Certificate != nil {
 			approved := false
-			for _, c := range csr.Status.Conditions {
+			for _, c := range chcsr.Status.Conditions {
 				if c.Type == v1beta1.CertificateApproved && c.Status != v1.ConditionFalse {
 					approved = true
 					break
@@ -104,19 +123,49 @@ func main() {
 			}
 			if approved {
 				log.Printf("the CSR has been issued, writing to secret: %v", secretLocation)
-				secret := v1.Secret{Data: map[string][]byte{
-					"cert.crt": csr.Status.Certificate,
-					"key.key":  privateKeyPem,
-				}}
-				bytes, err := json.Marshal(secret)
-				if err != nil {
-					log.Fatal("unexpected error while writing secret")
-				}
-				err = ioutil.WriteFile(secretLocation, bytes, 0)
+
+				// Give other users read permission to this file.
+				err = ioutil.WriteFile(path.Join(secretLocation, certName), chcsr.Status.Certificate, os.FileMode(0744))
 				if err != nil {
 					log.Fatalf("error while writing to file: %w", err)
 				}
 
+				// Give other users read permission to this file.
+				err = ioutil.WriteFile(path.Join(secretLocation, keyName), privateKeyPem, os.FileMode(0744))
+				if err != nil {
+					log.Fatalf("error while writing to file: %w", err)
+				}
+
+				if registerApiserver {
+					// Create a registration for this pod to run as an apiserver.
+					apiregistrationClient, err := v1beta12.NewForConfig(config)
+					if err != nil {
+						log.Panicf("Unable to create apiregistrationClient: %w", err)
+					}
+
+					_, err = apiregistrationClient.APIServices().Create(ctx, &apiregistrationv1beta1.APIService{
+						TypeMeta: metav1.TypeMeta{Kind: "APIService", APIVersion: "apiregistration.k8s.io/v1beta1"},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "v3.projectcalico.org",
+						},
+						Spec: apiregistrationv1beta1.APIServiceSpec{
+							Group:                calicoAPIGroup,
+							VersionPriority:      200,
+							GroupPriorityMinimum: 1500,
+							Service: &apiregistrationv1beta1.ServiceReference{
+								Name:      apiServiceName,
+								Namespace: apiServerNamespace,
+							},
+							Version:  "v3",
+							CABundle: chcsr.Status.Certificate,
+						},
+					}, metav1.CreateOptions{})
+
+					if err != nil {
+						log.Fatalf("error creating an api registration for the apiserver: %w", err)
+					}
+
+				}
 				break
 			}
 		}
@@ -124,14 +173,14 @@ func main() {
 }
 
 func init() {
-	flag.StringVar(&kubeconfig, "kubeconfig", "/home/rd/bzprofiles/kadm/.local/kubeconfig", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&masterURL, "master", "127.0.0.1:8001", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
 }
 
 //
 // createCertificateAuthority generates a certificate authority request ready to be signed
 //
-func createCSR(cn, emailAddress string, signatureAlgorithm x509.SignatureAlgorithm, privateKey interface{}) ([]byte, error) {
+func createCSR(cn, emailAddress, podIP string, signatureAlgorithm x509.SignatureAlgorithm, privateKey interface{}) ([]byte, error) {
 	subj := pkix.Name{
 		CommonName:         cn,
 		Country:            []string{"US"},
@@ -167,6 +216,7 @@ func createCSR(cn, emailAddress string, signatureAlgorithm x509.SignatureAlgorit
 	// step: generate a csr template
 	var csrTemplate = x509.CertificateRequest{
 		Subject:            subj,
+		DNSNames:           []string{cn, podIP},
 		SignatureAlgorithm: signatureAlgorithm,
 		ExtraExtensions: []pkix.Extension{
 			{
@@ -187,43 +237,54 @@ func createCSR(cn, emailAddress string, signatureAlgorithm x509.SignatureAlgorit
 }
 
 func getPrivateKey() (interface{}, []byte, error) {
-	var key interface{}
-	var err error
 
 	switch os.Getenv("KEY_ALGORITHM") {
 	case "RSAWithSize2048":
-		key, err = rsa.GenerateKey(rand.Reader, 2048)
-		break
+		return genRSA(2048)
 
 	case "RSAWithSize4096":
-		key, err = rsa.GenerateKey(rand.Reader, 4096)
-		break
+		return genRSA(4096)
 
 	case "RSAWithSize8192":
-		key, err = rsa.GenerateKey(rand.Reader, 8192)
-		break
+		return genRSA(8192)
 
 	case "ECDSAWithCurve256":
-		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		break
+		return genECDSA(elliptic.P256())
 
 	case "ECDSAWithCurve384":
-		key, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-		break
+		return genECDSA(elliptic.P384())
 
 	case "ECDSAWithCurve521":
-		key, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-		break
+		return genECDSA(elliptic.P521())
 
 	default:
-		key, err = rsa.GenerateKey(rand.Reader, 2048)
+		return genRSA(2048)
 	}
+}
 
+func genECDSA(curve elliptic.Curve) (interface{}, []byte, error) {
+	key, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
-	privateKeyPem, err := x509.MarshalPKCS8PrivateKey(key)
-	return key, privateKeyPem, err
+	byteArr, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	buf := bytes.NewBuffer([]byte{})
+	err = pem.Encode(buf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: byteArr})
+	return key, buf.Bytes(), err
+
+}
+
+func genRSA(size int) (*rsa.PrivateKey, []byte, error) {
+	key, err := rsa.GenerateKey(rand.Reader, size)
+	if err != nil {
+		return nil, nil, err
+	}
+	buf := bytes.NewBuffer([]byte{})
+	err = pem.Encode(buf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	return key, buf.Bytes(), err
 
 }
 
@@ -249,6 +310,6 @@ func getSignatureAlgorithm() x509.SignatureAlgorithm {
 		return x509.ECDSAWithSHA512
 
 	default:
-		return x509.SHA512WithRSA
+		return x509.SHA256WithRSA
 	}
 }

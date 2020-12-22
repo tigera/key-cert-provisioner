@@ -1,4 +1,7 @@
-FROM scratch
+FROM alpine
 
-COPY bin /init-container
-ENTRYPOINT ["/init-container"]
+COPY --chown=1001 ./bin/init-container /usr/local/bin/init-container
+
+USER 1001
+
+ENTRYPOINT ["/usr/local/bin/init-container"]
