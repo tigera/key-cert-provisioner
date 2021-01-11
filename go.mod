@@ -1,11 +1,14 @@
 // This is a generated file. Do not edit directly.
 
-module tigera/key-cert-provisioner
+module github.com/tigera/key-cert-provisioner
 
 go 1.15
 
 require (
 	github.com/google/uuid v1.1.2
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.7.0
+	github.com/sirupsen/logrus v1.6.0
 	k8s.io/api v0.20.0
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v0.20.0
