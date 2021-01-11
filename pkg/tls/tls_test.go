@@ -25,7 +25,7 @@ import (
 	"github.com/tigera/key-cert-provisioner/pkg/tls"
 )
 
-var _ = Describe("Test TLS", func() {
+var _ = Describe("Test TLS functions", func() {
 
 	Context("Test signature algorithm", func() {
 		It("should translate a string to the corresponding x509 value", func() {

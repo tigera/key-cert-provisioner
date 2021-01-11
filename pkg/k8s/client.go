@@ -28,11 +28,11 @@ type RestClient struct {
 
 // GetRestClient returns a bundle of K8s REST client interfaces.
 func NewRestClient() (*RestClient, error) {
-
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
+
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err

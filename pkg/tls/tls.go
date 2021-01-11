@@ -24,9 +24,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
+	"fmt"
 	"net"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/tigera/key-cert-provisioner/pkg/cfg"
 )
@@ -82,12 +81,12 @@ func CreateX509CSR(config *cfg.Config) (*X509CSR, error) {
 	}
 	privateKey, privateKeyPem, err := GeneratePrivateKey(config.NewPrivateKey)
 	if err != nil {
-		log.Fatalf("Unable to create private key: %w", err)
+		return nil, fmt.Errorf("unable to create private key: %w", err)
 	}
 	// step: generate the csr request
 	csrCertificate, err := x509.CreateCertificateRequest(rand.Reader, &csrTemplate, privateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create an x509 csr: %w", err)
 	}
 	return &X509CSR{
 		PrivateKey:    privateKey,

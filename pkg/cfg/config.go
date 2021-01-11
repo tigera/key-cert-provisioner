@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Config holds parameters that are used during runtime.
 type Config struct {
 	CSRName            string
 	EmptyDirLocation   string
@@ -47,7 +48,7 @@ func GetEnvOrDie(env string) string {
 	return val
 }
 
-// GetConfigOrDie initializes the Config that this program relies on. It exists the program if
+// GetConfigOrDie initializes the Config that this program relies on. It exists the program if expected variables are missing.
 func GetConfigOrDie() *Config {
 	dnsNames := strings.Split(os.Getenv("DNS_NAMES"), ",")
 	if len(dnsNames) == 0 {

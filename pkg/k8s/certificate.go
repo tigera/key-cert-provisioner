@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// WatchCSR Watches the CSR resource for updates and writes results to secret location (which should be mounted as an emptyDir)
 func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
 	watcher, err := restClient.Clientset.CertificatesV1beta1().CertificateSigningRequests().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -75,6 +76,7 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 	return nil
 }
 
+// SubmitCSR Submits a CSR in order to obtain a signed certificate for this pod.
 func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
 	csr := &v1beta1.CertificateSigningRequest{
 		TypeMeta:   metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
