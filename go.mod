@@ -5,19 +5,12 @@ module github.com/tigera/key-cert-provisioner
 go 1.15
 
 require (
-	github.com/google/uuid v1.1.2
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
 	github.com/sirupsen/logrus v1.6.0
-	k8s.io/api v0.20.0
-	k8s.io/apimachinery v0.20.0
-	k8s.io/client-go v0.20.0
+	k8s.io/api v0.18.2
+	k8s.io/apimachinery v0.18.2
+	k8s.io/client-go v0.18.2
 	k8s.io/klog/v2 v2.4.0
-	k8s.io/kube-aggregator v0.20.0
-)
-
-replace (
-	k8s.io/api => k8s.io/api v0.0.0-20201114085527-4a626d306b98
-	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20201114085355-859536f6dc9b
-	k8s.io/client-go => k8s.io/client-go v0.0.0-20201114085741-77eda6a9395b
+	k8s.io/kube-aggregator v0.18.2
 )
