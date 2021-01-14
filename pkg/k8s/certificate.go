@@ -87,7 +87,7 @@ func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, 
 		ObjectMeta: metav1.ObjectMeta{
 			Name: config.CSRName,
 			Labels: map[string]string{
-				"k8s-app": config.Label,
+				"k8s-app": config.AppName,
 			}},
 		Spec: v1beta1.CertificateSigningRequestSpec{
 			Request:    x509CSR.CSR,
