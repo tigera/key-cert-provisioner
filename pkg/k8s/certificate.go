@@ -28,6 +28,7 @@ import (
 	"github.com/tigera/key-cert-provisioner/pkg/tls"
 
 	"k8s.io/api/certificates/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,12 +44,18 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 		if !ok {
 			return fmt.Errorf("unexpected type in CertificateSigningRequest channel: %w", err)
 		}
-		if chcsr.Name == cfg.CSRName && chcsr.Status.Conditions != nil && chcsr.Status.Certificate != nil {
+		if chcsr.Name == cfg.CSRName && chcsr.Status.Conditions != nil && len(chcsr.Status.Certificate) > 0 {
 			approved := false
 			for _, c := range chcsr.Status.Conditions {
-				if c.Type == v1beta1.CertificateApproved {
+				if c.Type == v1beta1.CertificateApproved && (c.Status == v1.ConditionTrue || c.Status == "") { //status unset should be treated as true for backwards compatibility.
 					approved = true
 					break
+				}
+				if c.Type == v1beta1.CertificateDenied && c.Status == v1.ConditionTrue {
+					return fmt.Errorf("CSR was denied for this pod. CSR name: %s", cfg.CSRName)
+				}
+				if c.Type == v1beta1.CertificateFailed && c.Status == v1.ConditionTrue {
+					return fmt.Errorf("CSR failed for this pod. CSR name: %s", cfg.CSRName)
 				}
 			}
 			if approved {
@@ -65,7 +72,7 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 				if err != nil {
 					return fmt.Errorf("error while writing to file: %w", err)
 				}
-				break
+				return nil
 			}
 		}
 	}
@@ -76,8 +83,12 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
 	cli := restClient.Clientset.CertificatesV1beta1().CertificateSigningRequests()
 	csr := &v1beta1.CertificateSigningRequest{
-		TypeMeta:   metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
-		ObjectMeta: metav1.ObjectMeta{Name: config.CSRName},
+		TypeMeta: metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: config.CSRName,
+			Labels: map[string]string{
+				"k8s-app": config.Label,
+			}},
 		Spec: v1beta1.CertificateSigningRequestSpec{
 			Request:    x509CSR.CSR,
 			SignerName: &config.Signer,

@@ -36,6 +36,7 @@ type Config struct {
 	SignatureAlgorithm string
 	NewPrivateKey      string
 	RegisterApiserver  bool
+	Label              string
 }
 
 // GetEnvOrDie convenience method for initializing env.
@@ -63,6 +64,7 @@ func GetConfigOrDie() *Config {
 		KeyName:            GetEnvOrDie("KEY_NAME"),
 		CertName:           GetEnvOrDie("CERT_NAME"),
 		PodIP:              GetEnvOrDie("POD_IP"),
+		Label:              GetEnvOrDie("LABEL"),
 		NewPrivateKey:      os.Getenv("KEY_ALGORITHM"),
 		DNSNames:           dnsNames,
 	}
