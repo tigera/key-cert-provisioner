@@ -1,0 +1,7 @@
+FROM scratch
+
+COPY --chown=1001 ./bin/key-cert-provisioner-amd64 /usr/local/bin/key-cert-provisioner
+
+USER 1001
+
+ENTRYPOINT ["/usr/local/bin/key-cert-provisioner"]
