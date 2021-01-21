@@ -1,0 +1,59 @@
+version: v1.0
+name: Key Cert Provisioner
+
+execution_time_limit:
+  minutes: 30
+
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+
+global_job_config:
+  secrets:
+    - name: docker-hub
+    # Mount the github SSH secret for pulling private repositories.
+    - name: private-repo
+    # Mount a secret for pulling images from GCR.
+    - name: tigera-dev-ci-pull-credentials
+  prologue:
+    commands:
+      - echo $DOCKERHUB_PASSWORD | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+      # Correct permissions since they are too open by default:
+      - chmod 0600 ~/.keys/*
+      # Add the key to the ssh agent:
+      - ssh-add ~/.keys/*
+      # Login to docker in order to pull images.
+      - docker login --username casey@tigera.io -u _json_key -p "$(cat /home/semaphore/tigera-dev-ci.json)" https://gcr.io
+      - checkout
+
+blocks:
+  - name: 'CI'
+    dependencies: []
+    task:
+      jobs:
+        - name: Run CI
+          commands:
+            - make ci
+
+  - name: 'Push Images (non-PR builds only)'
+    dependencies: ["CI"]
+    skip:
+      # Only run on branches, not PRs.
+      when: "branch !~ '.+'"
+    task:
+      secrets:
+        - name: google-service-account-for-gcr
+      prologue:
+        commands:
+          # Correct permissions since they are too open by default:
+          - chmod 0600 ~/.keys/*
+          # Add the key to the ssh agent:
+          - ssh-add ~/.keys/*
+          # Login to docker in order to pull images.
+          - docker login --username casey@tigera.io -u _json_key -p "$(cat ~/secrets/secret.google-service-account-key.json)" https://gcr.io
+      jobs:
+        - name: Run CD
+          commands:
+            - export BRANCH_NAME=$SEMAPHORE_GIT_BRANCH
+            - if [ -z "${SEMAPHORE_GIT_PR_NUMBER}" ]; then make cd CONFIRM=true; fi
