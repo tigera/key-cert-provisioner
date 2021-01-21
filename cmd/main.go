@@ -35,19 +35,19 @@ func main() {
 	// Initiate REST restClient
 	restClient, err := k8s.NewRestClient()
 	if err != nil {
-		log.Fatalf("Unable to create a kubernetes rest restClient: %w", err)
+		log.WithError(err).Fatalf("Unable to create a kubernetes rest restClient")
 	}
 
 	csr, err := tls.CreateX509CSR(config)
 	if err != nil {
-		log.Fatalf("Unable to create x509 certificate request: %w", err)
+		log.WithError(err).Fatalf("Unable to create x509 certificate request")
 	}
 
 	if err := k8s.SubmitCSR(ctx, config, restClient, csr); err != nil {
-		log.Fatalf("Unable to submit a CSR: %w", err)
+		log.WithError(err).Fatalf("Unable to submit a CSR")
 	}
 
 	if err := k8s.WatchCSR(ctx, restClient, config, csr); err != nil {
-		log.Fatalf("Unable to watch CSR: %w", err)
+		log.WithError(err).Fatalf("Unable to watch CSR")
 	}
 }
