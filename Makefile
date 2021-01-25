@@ -104,6 +104,22 @@ push-all: imagetag $(addprefix sub-push-,$(ARCHES))
 sub-push-%:
 	$(MAKE) push ARCH=$* IMAGETAG=$(IMAGETAG)
 
+## push default amd64 arch where multi-arch manifest is not supported
+push-non-manifests: imagetag $(addprefix sub-non-manifest-,$(call escapefs,$(PUSH_NONMANIFEST_IMAGES)))
+sub-non-manifest-%:
+ifeq ($(ARCH),amd64)
+	docker push $(call unescapefs,$*:$(IMAGETAG))
+else
+	$(NOECHO) $(NOOP)
+endif
+
+## push multi-arch manifest where supported
+push-manifests: imagetag  $(addprefix sub-manifest-,$(call escapefs,$(PUSH_MANIFEST_IMAGES)))
+sub-manifest-%:
+	# Docker login to hub.docker.com required before running this target as we are using $(DOCKER_CONFIG) holds the docker login credentials
+	# path to credentials based on manifest-tool's requirements here https://github.com/estesp/manifest-tool#sample-usage
+	docker run -t --entrypoint /bin/sh -v $(DOCKER_CONFIG):/root/.docker/config.json $(CALICO_BUILD) -c "/usr/bin/manifest-tool push from-args --platforms $(call join_platforms,$(ARCHES)) --template $(call unescapefs,$*:$(IMAGETAG))-ARCH --target $(call unescapefs,$*:$(IMAGETAG))"
+
 
 cd: image
 ifndef CONFIRM
@@ -112,5 +128,5 @@ endif
 ifndef BRANCH_NAME
 	$(error BRANCH_NAME is undefined - run using make <target> BRANCH_NAME=var or set an environment variable)
 endif
-	$(MAKE) tag-images-all push-all IMAGETAG=$(BRANCH_NAME)
-	$(MAKE) tag-images-all push-all IMAGETAG=$(GIT_VERSION)
+	$(MAKE) tag-images-all push-all push-manifests push-non-manifests IMAGETAG=$(BRANCH_NAME)
+	$(MAKE) tag-images-all push-all push-manifests push-non-manifests IMAGETAG=$(GIT_VERSION)
