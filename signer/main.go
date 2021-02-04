@@ -80,6 +80,9 @@ func main() {
 
 	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metaV1.ListOptions{})
 
+	if err != nil {
+		log.Fatal(err)
+	}
 	ch := watchers.ResultChan()
 
 	for event := range ch {
