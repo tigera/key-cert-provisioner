@@ -2,3 +2,9 @@
 bin/
 .go-pkg-cache
 Makefile.common*
+
+signer/ca.crt
+signer/ca.key
+signer/signer
+
+/.idea/
