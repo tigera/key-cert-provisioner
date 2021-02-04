@@ -1,0 +1,167 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"flag"
+	"io/ioutil"
+	"math/big"
+	"os"
+	"time"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+
+	log "github.com/sirupsen/logrus"
+
+	"k8s.io/api/certificates/v1beta1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	masterURL  string
+	kubeconfig string
+	approve    bool
+	sign       bool
+)
+
+// WARNING: DO NOT USE THIS IN PRODUCTION CLUSTERS.
+// This is a watcher that automatically signs all CSRs in your cluster for dev/test purposes.
+func main() {
+	flag.Parse()
+
+	ctx := context.Background()
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Read private key in order to sign the csrs.
+	keyPEM, err := ioutil.ReadFile("ca.key")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	keyDER, _ := pem.Decode(keyPEM)
+	if keyDER == nil {
+		log.Fatal("No key found in ca.key")
+	}
+	key, err := x509.ParsePKCS8PrivateKey(keyDER.Bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mahKey, _ := key.(*rsa.PrivateKey)
+
+	certPEM, err := ioutil.ReadFile("ca.crt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	certDER, _ := pem.Decode(certPEM)
+	if certDER == nil {
+		log.Fatal("No key found in ca.crt")
+	}
+
+	crt, err := x509.ParseCertificate(certDER.Bytes)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	certV1Client := clientset.CertificatesV1beta1()
+
+	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metaV1.ListOptions{})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	ch := watchers.ResultChan()
+
+	for event := range ch {
+		csr, ok := event.Object.(*v1beta1.CertificateSigningRequest)
+		if !ok {
+			log.Fatal("unexpected type in cert channel")
+		}
+
+		cert := csr.DeepCopy()
+		if csr.Status.Certificate == nil && sign {
+
+			log.Infof("CSR: %v", csr.Name)
+
+			block, _ := pem.Decode(cert.Spec.Request)
+			if block == nil {
+				log.Fatal("failed to decode csr")
+			}
+
+			cr, err := x509.ParseCertificateRequest(block.Bytes)
+			if err != nil {
+				log.Fatal(err)
+			}
+			// todo: Don't do this in prod. This code does not check the signature!
+
+			bigint, _ := rand.Int(rand.Reader, big.NewInt(10E6))
+			certIssued := &x509.Certificate{
+				Version:               cr.Version,
+				BasicConstraintsValid: true,
+				SerialNumber:          bigint,
+				PublicKeyAlgorithm:    cr.PublicKeyAlgorithm,
+				PublicKey:             cr.PublicKey,
+				IsCA:                  false,
+				Subject:               cr.Subject,
+				NotBefore:             time.Now(),
+				NotAfter:              time.Now().Add(10E4 * time.Hour),
+				// see http://golang.org/pkg/crypto/x509/#KeyUsage
+				KeyUsage:       x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+				DNSNames:       cr.DNSNames,
+				IPAddresses:    cr.IPAddresses,
+				EmailAddresses: cr.EmailAddresses,
+				URIs:           cr.URIs,
+			}
+
+			derBytes, err := x509.CreateCertificate(rand.Reader, certIssued, crt, cr.PublicKey, mahKey)
+			if err != nil {
+				log.Fatalf("error creating x509 certificate: %s", err.Error())
+			}
+			pemBytes := bytes.NewBuffer([]byte{})
+			err = pem.Encode(pemBytes, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+			if err != nil {
+				log.Panicf("error encoding certificate PEM: %s", err.Error())
+			}
+
+			cert.Status.Certificate = pemBytes.Bytes()
+			r, err := certV1Client.CertificateSigningRequests().UpdateStatus(ctx, cert, metaV1.UpdateOptions{})
+			if err != nil {
+				log.Fatal("unexpected err when updating csr")
+			}
+			log.Infof("CSR Signed: %v", r.ObjectMeta.Name)
+		} else if len(csr.Status.Conditions) == 0 && approve {
+			cert.Status.Conditions = []v1beta1.CertificateSigningRequestCondition{
+				{
+					Type:    v1beta1.CertificateApproved,
+					Message: "Approved",
+					Reason:  "Approved",
+				},
+			}
+			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert, metaV1.UpdateOptions{}); err != nil {
+				log.Fatalf("Unable to update approval")
+			}
+			log.Infof("CSR Approved: %v", cert.Spec.Username)
+		}
+	}
+}
+
+func init() {
+	flag.StringVar(&kubeconfig, "kubeconfig", os.Getenv("KUBECONFIG"), "Path to a kubeconfig. Only required if out-of-cluster.")
+	flag.StringVar(&masterURL, "master", "127.0.0.1:8001", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.BoolVar(&sign, "sign", true, "Set to false if you do not want to sign.")
+	flag.BoolVar(&approve, "approve", true, "Set to false if you do not want to approve.")
+}
