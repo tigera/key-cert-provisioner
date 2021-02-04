@@ -8,4 +8,4 @@ chmod 0700 "$key_dir"
 cd "$key_dir"
 
 # Generate the CA cert and private key
-openssl req -nodes -new -x509 -keyout ca.key -out ca.crt -subj "/CN=cert-management-signer"
+openssl req -nodes -new -x509 -days 365 -keyout ca.key -out ca.crt -subj "/CN=cert-management-signer"
