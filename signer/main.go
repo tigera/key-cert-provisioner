@@ -25,9 +25,12 @@ import (
 var (
 	masterURL  string
 	kubeconfig string
+	approve    bool
+	sign       bool
 )
 
-// This is a watcher that automatically signs all csr's in your cluster for dev/test purposes.
+// WARNING: DO NOT USE THIS IN PRODUCTION CLUSTERS.
+// This is a watcher that automatically signs all CSRs in your cluster for dev/test purposes.
 func main() {
 	flag.Parse()
 
@@ -56,7 +59,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	println(key)
 
 	mahKey, _ := key.(*rsa.PrivateKey)
 
@@ -87,7 +89,7 @@ func main() {
 		}
 
 		cert := csr.DeepCopy()
-		if csr.Status.Certificate == nil {
+		if csr.Status.Certificate == nil && sign {
 
 			log.Infof("CSR: %v", csr.Name)
 
@@ -137,8 +139,8 @@ func main() {
 			if err != nil {
 				log.Fatal("unexpected err when updating csr")
 			}
-			log.Infof("CSR status updated: %v", r.ObjectMeta.Name)
-		} else if len(csr.Status.Conditions) == 0 {
+			log.Infof("CSR Signed: %v", r.ObjectMeta.Name)
+		} else if len(csr.Status.Conditions) == 0 && approve {
 			cert.Status.Conditions = []v1beta1.CertificateSigningRequestCondition{
 				{
 					Type:    v1beta1.CertificateApproved,
@@ -149,7 +151,7 @@ func main() {
 			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert, metaV1.UpdateOptions{}); err != nil {
 				log.Fatalf("Unable to update approval")
 			}
-			log.Infof("CSR has been approved for %s, time to party!", cert.Spec.Username)
+			log.Infof("CSR Approved: %v", cert.Spec.Username)
 		}
 	}
 }
@@ -157,4 +159,6 @@ func main() {
 func init() {
 	flag.StringVar(&kubeconfig, "kubeconfig", os.Getenv("KUBECONFIG"), "Path to a kubeconfig. Only required if out-of-cluster.")
 	flag.StringVar(&masterURL, "master", "127.0.0.1:8001", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+	flag.BoolVar(&sign, "sign", true, "Set to false if you do not want to sign.")
+	flag.BoolVar(&approve, "approve", true, "Set to false if you do not want to approve.")
 }
