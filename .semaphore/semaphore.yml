@@ -43,7 +43,7 @@ blocks:
       when: "branch !~ '.+'"
     task:
       secrets:
-        - name: google-service-account-for-gcr
+        - name: quay-robot-semaphore_v2
       prologue:
         commands:
           # Correct permissions since they are too open by default:
@@ -51,7 +51,7 @@ blocks:
           # Add the key to the ssh agent:
           - ssh-add ~/.keys/*
           # Login to docker in order to pull images.
-          - docker login --username casey@tigera.io -u _json_key -p "$(cat ~/secrets/secret.google-service-account-key.json)" https://gcr.io
+          - docker login -u="$QUAY_USERNAME" -p="$QUAY_TOKEN" quay.io
       jobs:
         - name: Run CD
           commands:
