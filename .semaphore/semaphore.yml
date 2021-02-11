@@ -12,19 +12,9 @@ agent:
 global_job_config:
   secrets:
     - name: docker-hub
-    # Mount the github SSH secret for pulling private repositories.
-    - name: private-repo
-    # Mount a secret for pulling images from GCR.
-    - name: tigera-dev-ci-pull-credentials
   prologue:
     commands:
       - echo $DOCKERHUB_PASSWORD | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
-      # Correct permissions since they are too open by default:
-      - chmod 0600 ~/.keys/*
-      # Add the key to the ssh agent:
-      - ssh-add ~/.keys/*
-      # Login to docker in order to pull images.
-      - docker login --username casey@tigera.io -u _json_key -p "$(cat /home/semaphore/tigera-dev-ci.json)" https://gcr.io
       - checkout
 
 blocks:
@@ -43,7 +33,7 @@ blocks:
       when: "branch !~ '.+'"
     task:
       secrets:
-        - name: google-service-account-for-gcr
+        - name: quay-robot-semaphore_v2
       prologue:
         commands:
           # Correct permissions since they are too open by default:
@@ -51,7 +41,7 @@ blocks:
           # Add the key to the ssh agent:
           - ssh-add ~/.keys/*
           # Login to docker in order to pull images.
-          - docker login --username casey@tigera.io -u _json_key -p "$(cat ~/secrets/secret.google-service-account-key.json)" https://gcr.io
+          - docker login -u="$QUAY_USERNAME" -p="$QUAY_TOKEN" quay.io
       jobs:
         - name: Run CD
           commands:
