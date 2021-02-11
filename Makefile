@@ -5,7 +5,7 @@ GO_BUILD_VER    ?= v0.50
 GIT_USE_SSH      = true
 
 BUILD_IMAGE?=tigera/key-cert-provisioner
-PUSH_IMAGES?=gcr.io/unique-caldron-775/cnx/$(BUILD_IMAGE)
+PUSH_IMAGES?=quay.io/$(BUILD_IMAGE)
 RELEASE_IMAGES?=quay.io/$(BUILD_IMAGE)
 ARCHES=amd64
 
@@ -90,6 +90,14 @@ endif
 
 sub-single-tag-images-arch-%:
 	docker tag $(BUILD_IMAGE):latest-$(ARCH) $(call unescapefs,$*:$(IMAGETAG)-$(ARCH))
+
+# because some still do not support multi-arch manifest
+sub-single-tag-images-non-manifest-%:
+ifeq ($(ARCH),amd64)
+	docker tag $(BUILD_IMAGE):latest-$(ARCH) $(call unescapefs,$*:$(IMAGETAG))
+else
+	$(NOECHO) $(NOOP)
+endif
 
 tag-images: imagetag $(addprefix sub-single-tag-images-arch-,$(call escapefs,$(PUSH_IMAGES))) $(addprefix sub-single-tag-images-non-manifest-,$(call escapefs,$(PUSH_NONMANIFEST_IMAGES)))
 
