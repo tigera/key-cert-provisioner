@@ -5,7 +5,7 @@ GO_BUILD_VER    ?= v0.50
 GIT_USE_SSH      = true
 
 BUILD_IMAGE?=tigera/key-cert-provisioner
-PUSH_IMAGES?=gcr.io/unique-caldron-775/cnx/$(BUILD_IMAGE)
+PUSH_IMAGES?=quay.io/$(BUILD_IMAGE)
 RELEASE_IMAGES?=quay.io/$(BUILD_IMAGE)
 ARCHES=amd64
 
