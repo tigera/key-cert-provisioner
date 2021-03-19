@@ -19,6 +19,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"net"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -78,7 +79,7 @@ var _ = Describe("Certificate requests", func() {
 	Context("Create a certificate request based on a config", func() {
 		It("should include all required fields", func() {
 			config := cfg.Config{
-				PodIP:               "127.0.0.1",
+				PodIP:               "1.2.3.4",
 				SignatureAlgorithm:  "SHA256WithRSA",
 				DNSNames:            []string{"localhost"},
 				CommonName:          "lh",
@@ -89,13 +90,13 @@ var _ = Describe("Certificate requests", func() {
 
 			block, _ := pem.Decode(csr.CSR)
 			Expect(block.Bytes).NotTo(BeEmpty())
-
 			cr, err := x509.ParseCertificateRequest(block.Bytes)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(cr.DNSNames).NotTo(BeEmpty())
-			Expect(cr.Extensions).NotTo(BeEmpty())
-			Expect(cr.Subject.CommonName).NotTo(BeEmpty())
-			Expect(cr.IPAddresses).NotTo(BeEmpty())
+			Expect(cr.DNSNames).To(ConsistOf("localhost"))
+			Expect(cr.Extensions).To(HaveLen(4))
+			Expect(cr.Subject.CommonName).To(Equal("lh"))
+			expectedIP := net.ParseIP("1.2.3.4")
+			Expect(expectedIP.Equal(cr.IPAddresses[0].To4())).To(BeTrue())
 			Expect(cr.PublicKeyAlgorithm).To(Equal(x509.RSA))
 			Expect(cr.SignatureAlgorithm).To(Equal(x509.SHA256WithRSA))
 		})
