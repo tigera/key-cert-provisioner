@@ -133,8 +133,8 @@ func main() {
 				NotBefore:             time.Now(),
 				NotAfter:              time.Now().Add(10E4 * time.Hour),
 				// see http://golang.org/pkg/crypto/x509/#KeyUsage
-				KeyUsage:       x509.KeyUsageDigitalSignature,
-				ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+				KeyUsage:       x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+				ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 				DNSNames:       cr.DNSNames,
 				IPAddresses:    cr.IPAddresses,
 				EmailAddresses: cr.EmailAddresses,
