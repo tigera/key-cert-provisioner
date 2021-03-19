@@ -24,19 +24,19 @@ import (
 
 // Config holds parameters that are used during runtime.
 type Config struct {
-	CSRName            string
-	EmptyDirLocation   string
-	Signer             string
-	CommonName         string
-	EmailAddress       string
-	PodIP              string
-	KeyName            string
-	CertName           string
-	DNSNames           []string
-	SignatureAlgorithm string
-	NewPrivateKey      string
-	RegisterApiserver  bool
-	AppName            string
+	CSRName             string
+	EmptyDirLocation    string
+	Signer              string
+	CommonName          string
+	EmailAddress        string
+	PodIP               string
+	KeyName             string
+	CertName            string
+	DNSNames            []string
+	SignatureAlgorithm  string
+	PrivateKeyAlgorithm string
+	RegisterApiserver   bool
+	AppName             string
 }
 
 // GetEnvOrDie convenience method for initializing env.
@@ -55,17 +55,17 @@ func GetConfigOrDie() *Config {
 		log.Fatal("environment variable DNS_NAMES cannot be empty")
 	}
 	return &Config{
-		CSRName:            fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
-		SignatureAlgorithm: os.Getenv("SIGNATURE_ALGORITHM"),
-		Signer:             GetEnvOrDie("SIGNER"),
-		CommonName:         GetEnvOrDie("COMMON_NAME"),
-		EmailAddress:       os.Getenv("EMAIL_ADDRESS"),
-		EmptyDirLocation:   GetEnvOrDie("CERTIFICATE_PATH"),
-		KeyName:            GetEnvOrDie("KEY_NAME"),
-		CertName:           GetEnvOrDie("CERT_NAME"),
-		PodIP:              GetEnvOrDie("POD_IP"),
-		AppName:            GetEnvOrDie("APP_NAME"),
-		NewPrivateKey:      os.Getenv("KEY_ALGORITHM"),
-		DNSNames:           dnsNames,
+		CSRName:             fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
+		SignatureAlgorithm:  os.Getenv("SIGNATURE_ALGORITHM"),
+		Signer:              GetEnvOrDie("SIGNER"),
+		CommonName:          GetEnvOrDie("COMMON_NAME"),
+		EmailAddress:        os.Getenv("EMAIL_ADDRESS"),
+		EmptyDirLocation:    GetEnvOrDie("CERTIFICATE_PATH"),
+		KeyName:             GetEnvOrDie("KEY_NAME"),
+		CertName:            GetEnvOrDie("CERT_NAME"),
+		PodIP:               GetEnvOrDie("POD_IP"),
+		AppName:             GetEnvOrDie("APP_NAME"),
+		PrivateKeyAlgorithm: os.Getenv("KEY_ALGORITHM"),
+		DNSNames:            dnsNames,
 	}
 }
