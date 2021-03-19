@@ -60,7 +60,24 @@ func CreateX509CSR(config *cfg.Config) (*X509CSR, error) {
 	}
 
 	// Cert does not need to function as a CA.
-	val, err := asn1.Marshal(basicConstraints{false, -1})
+	basicVal, err := asn1.Marshal(basicConstraints{false, -1})
+	if err != nil {
+		return nil, err
+	}
+
+	usageVal, err := marshalKeyUsage(x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature)
+	if err != nil {
+		return nil, err
+	}
+
+	extKeyUsages := []asn1.ObjectIdentifier{
+		// ExtKeyUsageServerAuth
+		{1, 3, 6, 1, 5, 5, 7, 3, 1},
+		// ExtKeyUsageClientAuth
+		{1, 3, 6, 1, 5, 5, 7, 3, 2},
+	}
+
+	extKeyUsagesVal, err := asn1.Marshal(extKeyUsages)
 	if err != nil {
 		return nil, err
 	}
@@ -73,13 +90,21 @@ func CreateX509CSR(config *cfg.Config) (*X509CSR, error) {
 		SignatureAlgorithm: SignatureAlgorithm(config.SignatureAlgorithm),
 		ExtraExtensions: []pkix.Extension{
 			{
+				// ExtensionBasicConstraints
 				Id:       asn1.ObjectIdentifier{2, 5, 29, 19},
-				Value:    val,
+				Value:    basicVal,
 				Critical: true,
+			},
+			// KeyUsage will be set to KeyEncipherment and DigitalSignature.
+			usageVal,
+			{
+				// ExtKeyUsage will be set to ServerAuth and ClientAuth.
+				Id:    asn1.ObjectIdentifier{2, 5, 29, 37},
+				Value: extKeyUsagesVal,
 			},
 		},
 	}
-	privateKey, privateKeyPem, err := GeneratePrivateKey(config.NewPrivateKey)
+	privateKey, privateKeyPem, err := GeneratePrivateKey(config.PrivateKeyAlgorithm)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create private key: %w", err)
 	}
@@ -184,4 +209,54 @@ func SignatureAlgorithm(algorithm string) x509.SignatureAlgorithm {
 	default:
 		return x509.SHA256WithRSA
 	}
+}
+
+// marshalKeyUsage has been copied from the golang package crypto/x509/x509.go in order to marshal keyUsage.
+func marshalKeyUsage(ku x509.KeyUsage) (pkix.Extension, error) {
+	ext := pkix.Extension{Id: []int{2, 5, 29, 15}, Critical: true}
+
+	var a [2]byte
+	a[0] = reverseBitsInAByte(byte(ku))
+	a[1] = reverseBitsInAByte(byte(ku >> 8))
+
+	l := 1
+	if a[1] != 0 {
+		l = 2
+	}
+
+	bitString := a[:l]
+	var err error
+	ext.Value, err = asn1.Marshal(asn1.BitString{Bytes: bitString, BitLength: asn1BitLength(bitString)})
+	if err != nil {
+		return ext, err
+	}
+	return ext, nil
+}
+
+// reverseBitsInAByte has been copied from the golang package crypto/x509/x509.go in order to marshal keyUsage.
+func reverseBitsInAByte(in byte) byte {
+	b1 := in>>4 | in<<4
+	b2 := b1>>2&0x33 | b1<<2&0xcc
+	b3 := b2>>1&0x55 | b2<<1&0xaa
+	return b3
+}
+
+// asn1BitLength has been copied from the golang package crypto/x509/x509.go in order to marshal keyUsage.
+// asn1BitLength returns the bit-length of bitString by considering the most-significant bit in a byte to be the "first"
+// bit. This convention matches ASN.1, but differs from almost everything else.
+func asn1BitLength(bitString []byte) int {
+	bitLen := len(bitString) * 8
+
+	for i := range bitString {
+		b := bitString[len(bitString)-i-1]
+
+		for bit := uint(0); bit < 8; bit++ {
+			if (b>>bit)&1 == 1 {
+				return bitLen
+			}
+			bitLen--
+		}
+	}
+
+	return 0
 }
