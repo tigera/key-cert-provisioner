@@ -79,7 +79,7 @@ var _ = Describe("Test Certificates", func() {
 			Expect(csr.Name).To(Equal(csrName))
 			Expect(csr.Spec.Request).To(Equal(csrPem))
 			Expect(*csr.Spec.SignerName).To(Equal(signer))
-			Expect(csr.Spec.Usages).To(ConsistOf(v1beta1.UsageServerAuth, v1beta1.UsageDigitalSignature, v1beta1.UsageKeyAgreement))
+			Expect(csr.Spec.Usages).To(ConsistOf(v1beta1.UsageServerAuth, v1beta1.UsageClientAuth, v1beta1.UsageDigitalSignature, v1beta1.UsageKeyAgreement))
 		})
 	})
 })
