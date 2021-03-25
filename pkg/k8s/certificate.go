@@ -18,29 +18,30 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/tigera/key-cert-provisioner/pkg/cfg"
 	"github.com/tigera/key-cert-provisioner/pkg/tls"
 
 	certV1 "k8s.io/api/certificates/v1"
 	certV1beta1 "k8s.io/api/certificates/v1beta1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 )
 
-type VersionInfo struct {
+type versionInfo struct {
+	Major int
 	Minor int
 }
 
+// WatchCSR Watches the CSR resource for updates and writes results to the certificate location (which should be mounted as an emptyDir)
 func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
 	version, err := getKubernetesVersion(restClient.Clientset)
 	if err != nil {
@@ -52,12 +53,12 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 		return fmt.Errorf("unable to watch certificate requests: %w", err)
 	}
 	log.Infof("watching CSR until it has been signed and approved: %v", cfg.CSRName)
-	return WatchCSRBasedOnKubernetesVersion(watcher, cfg, x509CSR, version)
+	return watchCSRBasedOnKubernetesVersion(watcher, cfg, x509CSR, version)
 }
 
-func createCSRWatcher(ctx context.Context, restClient *RestClient, version *VersionInfo, err error) (*watch.Interface, error) {
+func createCSRWatcher(ctx context.Context, restClient *RestClient, version *versionInfo, err error) (*watch.Interface, error) {
 	var watcher watch.Interface
-	if version != nil && version.Minor > 18 {
+	if version.Major > 1 || version.Minor >= 19 {
 		watcher, err = restClient.Clientset.CertificatesV1().CertificateSigningRequests().Watch(ctx, metav1.ListOptions{})
 	} else {
 		watcher, err = restClient.Clientset.CertificatesV1beta1().CertificateSigningRequests().Watch(ctx, metav1.ListOptions{})
@@ -65,16 +66,14 @@ func createCSRWatcher(ctx context.Context, restClient *RestClient, version *Vers
 	return &watcher, err
 }
 
-func WatchCSRBasedOnKubernetesVersion(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR, version *VersionInfo) error {
-	if version != nil && version.Minor > 18 {
-		return WatchCSRUsingCertV1(watcher, cfg, x509CSR)
-	} else {
-		return WatchCSRUsingCertV1beta1(watcher, cfg, x509CSR)
+func watchCSRBasedOnKubernetesVersion(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR, version *versionInfo) error {
+	if version.Major > 1 || version.Minor >= 19 {
+		return watchCSRUsingCertV1(watcher, cfg, x509CSR)
 	}
+	return watchCSRUsingCertV1beta1(watcher, cfg, x509CSR)
 }
 
-// WatchCSR Watches the CSR resource for updates and writes results to the certificate location (which should be mounted as an emptyDir)
-func WatchCSRUsingCertV1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
+func watchCSRUsingCertV1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
 	for event := range (*watcher).ResultChan() {
 		chcsr, ok := event.Object.(*certV1.CertificateSigningRequest)
 		if !ok {
@@ -102,7 +101,7 @@ func WatchCSRUsingCertV1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls
 	return nil
 }
 
-func WatchCSRUsingCertV1beta1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
+func watchCSRUsingCertV1beta1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
 	for event := range (*watcher).ResultChan() {
 		chcsr, ok := event.Object.(*certV1beta1.CertificateSigningRequest)
 		if !ok {
@@ -155,13 +154,17 @@ func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, 
 		return err
 	}
 
-	if version != nil && version.Minor > 18 {
-		return SubmitCSRUsingCertV1(ctx, config, restClient, x509CSR)
-	}
-	return SubmitCSRUsingCertV1beta1(ctx, config, restClient, x509CSR)
+	return submitCSRBasedOnKubernetesVersion(ctx, config, restClient, x509CSR, version)
 }
 
-func SubmitCSRUsingCertV1(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
+func submitCSRBasedOnKubernetesVersion(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR, version *versionInfo) error {
+	if version.Major > 1 || version.Minor >= 19 {
+		return submitCSRUsingCertV1(ctx, config, restClient, x509CSR)
+	}
+	return submitCSRUsingCertV1beta1(ctx, config, restClient, x509CSR)
+}
+
+func submitCSRUsingCertV1(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
 	cli := restClient.Clientset.CertificatesV1().CertificateSigningRequests()
 	csr := &certV1.CertificateSigningRequest{
 		TypeMeta: metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1"},
@@ -197,7 +200,7 @@ func SubmitCSRUsingCertV1(ctx context.Context, config *cfg.Config, restClient *R
 	return nil
 }
 
-func SubmitCSRUsingCertV1beta1(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
+func submitCSRUsingCertV1beta1(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
 	cli := restClient.Clientset.CertificatesV1beta1().CertificateSigningRequests()
 	csr := &certV1beta1.CertificateSigningRequest{
 		TypeMeta: metav1.TypeMeta{Kind: "CertificateSigningRequest", APIVersion: "certificates.k8s.io/v1beta1"},
@@ -233,14 +236,15 @@ func SubmitCSRUsingCertV1beta1(ctx context.Context, config *cfg.Config, restClie
 	return nil
 }
 
-func getKubernetesVersion(clientset kubernetes.Interface) (*VersionInfo, error) {
+func getKubernetesVersion(clientset kubernetes.Interface) (*versionInfo, error) {
 	v, err := clientset.Discovery().ServerVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to check k8s version: %v", err)
 	}
 
-	if v.Major != "1" {
-		return nil, nil
+	major, err := strconv.Atoi(v.Major)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse k8s major version %s", v.Major)
 	}
 
 	// filter out a proceeding '+' from the minor version since openshift includes that.
@@ -249,7 +253,8 @@ func getKubernetesVersion(clientset kubernetes.Interface) (*VersionInfo, error) 
 		return nil, fmt.Errorf("failed to parse k8s minor version %s", v.Minor)
 	}
 
-	return &VersionInfo{
+	return &versionInfo{
+		Major: major,
 		Minor: minor,
 	}, nil
 }
