@@ -43,7 +43,7 @@ type versionInfo struct {
 
 // WatchCSR Watches the CSR resource for updates and writes results to the certificate location (which should be mounted as an emptyDir)
 func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509CSR *tls.X509CSR) error {
-	version, err := getKubernetesVersion(restClient.Clientset)
+	version, err := GetKubernetesVersion(restClient.Clientset)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func writeCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) 
 
 // SubmitCSR Submits a CSR in order to obtain a signed certificate for this pod.
 func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, x509CSR *tls.X509CSR) error {
-	version, err := getKubernetesVersion(restClient.Clientset)
+	version, err := GetKubernetesVersion(restClient.Clientset)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func submitCSRUsingCertV1beta1(ctx context.Context, config *cfg.Config, restClie
 	return nil
 }
 
-func getKubernetesVersion(clientset kubernetes.Interface) (*versionInfo, error) {
+func GetKubernetesVersion(clientset kubernetes.Interface) (*versionInfo, error) {
 	v, err := clientset.Discovery().ServerVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to check k8s version: %v", err)
@@ -244,13 +244,13 @@ func getKubernetesVersion(clientset kubernetes.Interface) (*versionInfo, error) 
 
 	major, err := strconv.Atoi(v.Major)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse k8s major version %s", v.Major)
+		return nil, fmt.Errorf("failed to parse k8s major version: %s", v.Major)
 	}
 
 	// filter out a proceeding '+' from the minor version since openshift includes that.
 	minor, err := strconv.Atoi(strings.TrimSuffix(v.Minor, "+"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse k8s minor version %s", v.Minor)
+		return nil, fmt.Errorf("failed to parse k8s minor version: %s", v.Minor)
 	}
 
 	return &versionInfo{
