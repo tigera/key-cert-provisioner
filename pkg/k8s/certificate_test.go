@@ -26,6 +26,7 @@ import (
 	"github.com/tigera/key-cert-provisioner/pkg/tls"
 
 	certV1 "k8s.io/api/certificates/v1"
+	certV1beta1 "k8s.io/api/certificates/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	discoveryFake "k8s.io/client-go/discovery/fake"
@@ -51,10 +52,6 @@ var _ = Describe("Test Certificates", func() {
 
 	BeforeEach(func() {
 		clientset = fake.NewSimpleClientset()
-		clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
-			Major: strconv.Itoa(3),
-			Minor: strconv.Itoa(2),
-		}
 		config = &cfg.Config{
 			Signer:  signer,
 			CSRName: csrName,
@@ -62,20 +59,26 @@ var _ = Describe("Test Certificates", func() {
 		tlsCsr = &tls.X509CSR{
 			CSR: csrPem,
 		}
-		restClient = &k8s.RestClient{
-			APIRegistrationClient: nil,
-			Clientset:             clientset,
-			RestConfig:            nil,
-		}
 	})
 	Context("Test submitting a CSR", func() {
 		It("should list no CSRs when the suite starts", func() {
-			By("verifying no CSRs are present yet")
+			By("create a k8s client with high version")
+			clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
+				Major: strconv.Itoa(3),
+				Minor: strconv.Itoa(2),
+			}
+			restClient = &k8s.RestClient{
+				APIRegistrationClient: nil,
+				Clientset:             clientset,
+				RestConfig:            nil,
+			}
+
+			By("verifying no v1 CSRs are present yet")
 			resp, err := clientset.CertificatesV1().CertificateSigningRequests().List(ctx, v1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.Items).To(HaveLen(0))
 
-			By("creating the CSRs are present yet")
+			By("creating the v1 CSRs are present yet")
 			Expect(k8s.SubmitCSR(ctx, config, restClient, tlsCsr)).ToNot(HaveOccurred())
 
 			By("Verifying the object exists with the right settings")
@@ -87,7 +90,45 @@ var _ = Describe("Test Certificates", func() {
 			Expect(csr.Name).To(Equal(csrName))
 			Expect(csr.Spec.Request).To(Equal(csrPem))
 			Expect(csr.Spec.SignerName).To(Equal(signer))
-			Expect(csr.Spec.Usages).To(ConsistOf(certV1.UsageServerAuth, certV1.UsageClientAuth, certV1.UsageDigitalSignature, certV1.UsageKeyAgreement))
+			Expect(csr.Spec.Usages).To(ConsistOf(certV1.UsageServerAuth, certV1.UsageClientAuth,
+				certV1.UsageDigitalSignature, certV1.UsageKeyAgreement))
+			Expect(csr.Spec.Usages).NotTo(ConsistOf(certV1beta1.UsageServerAuth, certV1beta1.UsageClientAuth,
+				certV1beta1.UsageDigitalSignature, certV1beta1.UsageKeyAgreement))
+		})
+
+		It("should list no CSRs when the suite starts", func() {
+			By("create a k8s client with lower version")
+			clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
+				Major: strconv.Itoa(1),
+				Minor: strconv.Itoa(18),
+			}
+			restClient = &k8s.RestClient{
+				APIRegistrationClient: nil,
+				Clientset:             clientset,
+				RestConfig:            nil,
+			}
+
+			By("verifying no v1beta1 CSRs are present yet")
+			resp, err := clientset.CertificatesV1beta1().CertificateSigningRequests().List(ctx, v1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.Items).To(HaveLen(0))
+
+			By("creating the v1beta1 CSRs are present yet")
+			Expect(k8s.SubmitCSR(ctx, config, restClient, tlsCsr)).ToNot(HaveOccurred())
+
+			By("Verifying the object exists with the right settings")
+			csrs, err := clientset.CertificatesV1beta1().CertificateSigningRequests().List(ctx, v1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(csrs.Items).To(HaveLen(1))
+			csr := csrs.Items[0]
+
+			Expect(csr.Name).To(Equal(csrName))
+			Expect(csr.Spec.Request).To(Equal(csrPem))
+			Expect(*csr.Spec.SignerName).To(Equal(signer))
+			Expect(csr.Spec.Usages).To(ConsistOf(certV1beta1.UsageServerAuth, certV1beta1.UsageClientAuth,
+				certV1beta1.UsageDigitalSignature, certV1beta1.UsageKeyAgreement))
+			Expect(csr.Spec.Usages).NotTo(ConsistOf(certV1.UsageServerAuth, certV1.UsageClientAuth,
+				certV1.UsageDigitalSignature, certV1.UsageKeyAgreement))
 		})
 	})
 })
