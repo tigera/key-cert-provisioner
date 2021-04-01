@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
-GO_BUILD_VER    ?= v0.50
+GO_BUILD_VER    ?= v0.51
 GIT_USE_SSH      = true
 
 BUILD_IMAGE?=tigera/key-cert-provisioner
@@ -74,69 +74,4 @@ ifeq ($(ARCH),amd64)
 	docker tag $(BUILD_IMAGE):latest-$(ARCH) $(BUILD_IMAGE):latest
 endif
 
-###############################################################################
-# we want to be able to run the same recipe on multiple targets keyed on the image name
-# to do that, we would use the entire image name, e.g. calico/node:abcdefg, as the stem, or '%', in the target
-# however, make does **not** allow the usage of invalid filename characters - like / and : - in a stem, and thus errors out
-# to get around that, we "escape" those characters by converting all : to --- and all / to ___ , so that we can use them
-# in the target, we then unescape them back
-escapefs = $(subst :,---,$(subst /,___,$(1)))
-unescapefs = $(subst ---,:,$(subst ___,/,$(1)))
-
-imagetag:
-ifndef IMAGETAG
-	$(error IMAGETAG is undefined - run using make <target> IMAGETAG=X.Y.Z)
-endif
-
-sub-single-tag-images-arch-%:
-	docker tag $(BUILD_IMAGE):latest-$(ARCH) $(call unescapefs,$*:$(IMAGETAG)-$(ARCH))
-
-# because some still do not support multi-arch manifest
-sub-single-tag-images-non-manifest-%:
-ifeq ($(ARCH),amd64)
-	docker tag $(BUILD_IMAGE):latest-$(ARCH) $(call unescapefs,$*:$(IMAGETAG))
-else
-	$(NOECHO) $(NOOP)
-endif
-
-tag-images: imagetag $(addprefix sub-single-tag-images-arch-,$(call escapefs,$(PUSH_IMAGES))) $(addprefix sub-single-tag-images-non-manifest-,$(call escapefs,$(PUSH_NONMANIFEST_IMAGES)))
-
-tag-images-all: imagetag $(addprefix sub-tag-images-,$(ARCHES))
-sub-tag-images-%:
-	$(MAKE) tag-images ARCH=$* IMAGETAG=$(IMAGETAG)
-
-push: imagetag $(addprefix sub-single-push-,$(call escapefs,$(PUSH_IMAGES)))
-
-sub-single-push-%:
-	docker push $(call unescapefs,$*:$(IMAGETAG)-$(ARCH))
-
-push-all: imagetag $(addprefix sub-push-,$(ARCHES))
-sub-push-%:
-	$(MAKE) push ARCH=$* IMAGETAG=$(IMAGETAG)
-
-## push default amd64 arch where multi-arch manifest is not supported
-push-non-manifests: imagetag $(addprefix sub-non-manifest-,$(call escapefs,$(PUSH_NONMANIFEST_IMAGES)))
-sub-non-manifest-%:
-ifeq ($(ARCH),amd64)
-	docker push $(call unescapefs,$*:$(IMAGETAG))
-else
-	$(NOECHO) $(NOOP)
-endif
-
-## push multi-arch manifest where supported
-push-manifests: imagetag  $(addprefix sub-manifest-,$(call escapefs,$(PUSH_MANIFEST_IMAGES)))
-sub-manifest-%:
-	# Docker login to hub.docker.com required before running this target as we are using $(DOCKER_CONFIG) holds the docker login credentials
-	# path to credentials based on manifest-tool's requirements here https://github.com/estesp/manifest-tool#sample-usage
-	docker run -t --entrypoint /bin/sh -v $(DOCKER_CONFIG):/root/.docker/config.json $(CALICO_BUILD) -c "/usr/bin/manifest-tool push from-args --platforms $(call join_platforms,$(ARCHES)) --template $(call unescapefs,$*:$(IMAGETAG))-ARCH --target $(call unescapefs,$*:$(IMAGETAG))"
-
-
-cd: image
-ifndef CONFIRM
-	$(error CONFIRM is undefined - run using make <target> CONFIRM=true)
-endif
-ifndef BRANCH_NAME
-	$(error BRANCH_NAME is undefined - run using make <target> BRANCH_NAME=var or set an environment variable)
-endif
-	$(MAKE) tag-images-all push-all push-manifests push-non-manifests IMAGETAG=$(BRANCH_NAME)
-	$(MAKE) tag-images-all push-all push-manifests push-non-manifests IMAGETAG=$(GIT_VERSION)
+cd: image cd-common
