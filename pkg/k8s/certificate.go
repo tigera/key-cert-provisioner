@@ -48,7 +48,7 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 		return err
 	}
 
-	watcher, err := createCSRWatcher(ctx, restClient, version, err)
+	watcher, err := createCSRWatcher(ctx, restClient, version)
 	if err != nil {
 		return fmt.Errorf("unable to watch certificate requests: %w", err)
 	}
@@ -56,8 +56,9 @@ func WatchCSR(ctx context.Context, restClient *RestClient, cfg *cfg.Config, x509
 	return watchCSRBasedOnKubernetesVersion(watcher, cfg, x509CSR, version)
 }
 
-func createCSRWatcher(ctx context.Context, restClient *RestClient, version *versionInfo, err error) (*watch.Interface, error) {
+func createCSRWatcher(ctx context.Context, restClient *RestClient, version *versionInfo) (*watch.Interface, error) {
 	var watcher watch.Interface
+	var err error
 	if version.Major > 1 || version.Minor >= 19 {
 		watcher, err = restClient.Clientset.CertificatesV1().CertificateSigningRequests().Watch(ctx, metav1.ListOptions{})
 	} else {
