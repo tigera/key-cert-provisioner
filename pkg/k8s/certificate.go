@@ -145,6 +145,14 @@ func writeCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) 
 	if err != nil {
 		return fmt.Errorf("error while writing to file: %w", err)
 	}
+
+	// Write the CA Cert to a file if it was provided.
+	if len(cfg.CACertPEM) > 0 {
+		err = ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CACertName), cfg.CACertPEM, os.FileMode(0744))
+		if err != nil {
+			return fmt.Errorf("error while writing to file: %w", err)
+		}
+	}
 	return nil
 }
 

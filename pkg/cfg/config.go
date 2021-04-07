@@ -15,6 +15,7 @@
 package cfg
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -32,6 +33,8 @@ type Config struct {
 	PodIP               string
 	KeyName             string
 	CertName            string
+	CACertName          string
+	CACertPEM           []byte
 	DNSNames            []string
 	SignatureAlgorithm  string
 	PrivateKeyAlgorithm string
@@ -54,6 +57,20 @@ func GetConfigOrDie() *Config {
 	if len(dnsNames) == 0 {
 		log.Fatal("environment variable DNS_NAMES cannot be empty")
 	}
+
+	// If provided, decode the CA, so it can be written to file.
+	b64CACert := os.Getenv("CA_CERT")
+	var caCertName string
+	var caCert []byte
+	if len(b64CACert) > 0 {
+		var err error
+		caCert, err = base64.URLEncoding.DecodeString(b64CACert)
+		if err != nil {
+			log.Fatalf("Error while decoding CA Cert: %w", err)
+		}
+		caCertName = GetEnvOrDie("CA_CERT_NAME")
+	}
+
 	return &Config{
 		CSRName:             fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
 		SignatureAlgorithm:  os.Getenv("SIGNATURE_ALGORITHM"),
@@ -63,6 +80,8 @@ func GetConfigOrDie() *Config {
 		EmptyDirLocation:    GetEnvOrDie("CERTIFICATE_PATH"),
 		KeyName:             GetEnvOrDie("KEY_NAME"),
 		CertName:            GetEnvOrDie("CERT_NAME"),
+		CACertName:          caCertName,
+		CACertPEM:           caCert,
 		PodIP:               GetEnvOrDie("POD_IP"),
 		AppName:             GetEnvOrDie("APP_NAME"),
 		PrivateKeyAlgorithm: os.Getenv("KEY_ALGORITHM"),
