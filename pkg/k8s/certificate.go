@@ -95,7 +95,7 @@ func watchCSRUsingCertV1(watcher *watch.Interface, cfg *cfg.Config, x509CSR *tls
 				}
 			}
 			if approved {
-				return writeCertificateToFile(cfg, chcsr.Status.Certificate, x509CSR)
+				return WriteCertificateToFile(cfg, chcsr.Status.Certificate, x509CSR)
 			}
 		}
 	}
@@ -124,14 +124,15 @@ func watchCSRUsingCertV1beta1(watcher *watch.Interface, cfg *cfg.Config, x509CSR
 				}
 			}
 			if approved {
-				return writeCertificateToFile(cfg, chcsr.Status.Certificate, x509CSR)
+				return WriteCertificateToFile(cfg, chcsr.Status.Certificate, x509CSR)
 			}
 		}
 	}
 	return nil
 }
 
-func writeCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) error {
+// WriteCertificateToFile writes TLS key, cert and cacert to the mount location specified in the config parameter.
+func WriteCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) error {
 	log.Infof("the CSR has been signed and approved, writing to certificate location: %v", cfg.EmptyDirLocation)
 
 	// Give other users read permission to this file.
@@ -144,6 +145,14 @@ func writeCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) 
 	err = ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.KeyName), x509CSR.PrivateKeyPEM, os.FileMode(0744))
 	if err != nil {
 		return fmt.Errorf("error while writing to file: %w", err)
+	}
+
+	// Write the CA Cert to a file if it was provided.
+	if len(cfg.CACertPEM) > 0 && len(cfg.CACertName) > 0 {
+		err = ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CACertName), cfg.CACertPEM, os.FileMode(0744))
+		if err != nil {
+			return fmt.Errorf("error while writing to file: %w", err)
+		}
 	}
 	return nil
 }
