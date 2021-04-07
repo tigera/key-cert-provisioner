@@ -66,7 +66,7 @@ func GetConfigOrDie() *Config {
 		var err error
 		caCert, err = base64.URLEncoding.DecodeString(b64CACert)
 		if err != nil {
-			log.Fatalf("Error while decoding CA Cert: %w", err)
+			log.Fatalf("Error while decoding CA Cert: %v", err)
 		}
 		caCertName = GetEnvOrDie("CA_CERT_NAME")
 	}
