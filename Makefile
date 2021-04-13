@@ -4,6 +4,9 @@ PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
 GO_BUILD_VER    ?= v0.51
 GIT_USE_SSH      = true
 
+ORGANIZATION=tigera
+SEMAPHORE_PROJECT_ID?=$(SEMAPHORE_KEY_CERT_PROVISIONER_PROJECT_ID)
+
 BUILD_IMAGE?=tigera/key-cert-provisioner
 PUSH_IMAGES?=quay.io/$(BUILD_IMAGE)
 RELEASE_IMAGES?=quay.io/$(BUILD_IMAGE)
