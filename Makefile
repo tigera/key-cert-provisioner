@@ -1,16 +1,23 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
-GO_BUILD_VER    ?= v0.51
+GO_BUILD_VER    ?= v0.52
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
 SEMAPHORE_PROJECT_ID?=$(SEMAPHORE_KEY_CERT_PROVISIONER_PROJECT_ID)
 
-BUILD_IMAGE?=tigera/key-cert-provisioner
-PUSH_IMAGES?=quay.io/$(BUILD_IMAGE)
-RELEASE_IMAGES?=quay.io/$(BUILD_IMAGE)
 ARCHES=amd64
+
+RELEASE_BRANCH_PREFIX ?= release
+DEV_TAG_SUFFIX        ?= 0.dev
+
+DEV_REGISTRIES        ?= quay.io
+RELEASE_REGISTRIES    ?= quay.io
+BUILD_IMAGES          ?= tigera/key-cert-provisioner
+
+PUSH_IMAGES           ?= $(foreach registry,$(DEV_REGISTRIES),$(addprefix $(registry)/,$(BUILD_IMAGES)))
+RELEASE_IMAGES        ?= $(foreach registry,$(RELEASE_REGISTRIES),$(addprefix $(registry)/,$(BUILD_IMAGES)))
 
 BINDIR?= bin
 
