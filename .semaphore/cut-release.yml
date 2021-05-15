@@ -12,10 +12,14 @@ agent:
 global_job_config:
   secrets:
     - name: docker-hub
+    - name: private-repo
   prologue:
     commands:
       - echo $DOCKERHUB_PASSWORD | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
-      - checkout
+      # Correct permissions since they are too open by default:
+      - chmod 0600 ~/.keys/*
+      # Add the key to the ssh agent:
+      - ssh-add ~/.keys/*
 
 blocks:
   - name: 'Cut Release'
