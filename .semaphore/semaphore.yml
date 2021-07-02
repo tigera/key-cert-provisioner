@@ -12,6 +12,7 @@ agent:
 global_job_config:
   secrets:
     - name: docker-hub
+    - name: quay-robot-semaphore_v2
   prologue:
     commands:
       - echo $DOCKERHUB_PASSWORD | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
