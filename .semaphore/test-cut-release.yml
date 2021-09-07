@@ -28,7 +28,7 @@ global_job_config:
       - git fetch --unshallow
 
 blocks:
-  - name: 'Cut Release'
+  - name: 'Test Cut Release'
     task:
       secrets:
         - name: google-service-account-for-gcr
@@ -44,4 +44,4 @@ blocks:
         - name: Cut Release
           commands:
           - make git-config CONFIRM=true
-          - make cut-release CONFIRM=true
+          - make cut-release DRYRUN=true
