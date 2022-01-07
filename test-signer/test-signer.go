@@ -31,7 +31,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"k8s.io/api/certificates/v1beta1"
+	certv1 "k8s.io/api/certificates/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -107,7 +107,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	certV1Client := clientset.CertificatesV1beta1()
+	certV1Client := clientset.CertificatesV1()
 
 	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metaV1.ListOptions{})
 
@@ -117,7 +117,7 @@ func main() {
 	ch := watchers.ResultChan()
 
 	for event := range ch {
-		csr, ok := event.Object.(*v1beta1.CertificateSigningRequest)
+		csr, ok := event.Object.(*certv1.CertificateSigningRequest)
 		if !ok {
 			log.Fatal("unexpected type in cert channel")
 		}
@@ -177,14 +177,14 @@ func main() {
 			}
 			log.Infof("CSR Signed: %v", r.ObjectMeta.Name)
 		} else if len(csr.Status.Conditions) == 0 && approve {
-			cert.Status.Conditions = []v1beta1.CertificateSigningRequestCondition{
+			cert.Status.Conditions = []certv1.CertificateSigningRequestCondition{
 				{
-					Type:    v1beta1.CertificateApproved,
+					Type:    certv1.CertificateApproved,
 					Message: "Approved",
 					Reason:  "Approved",
 				},
 			}
-			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert, metaV1.UpdateOptions{}); err != nil {
+			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert.Name, cert, metaV1.UpdateOptions{}); err != nil {
 				log.Fatalf("Unable to update approval")
 			}
 			log.Infof("CSR Approved: %v", cert.Spec.Username)
