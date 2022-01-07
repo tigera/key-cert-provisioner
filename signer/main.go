@@ -121,7 +121,7 @@ func main() {
 			}
 			// todo: Don't do this in prod. This code does not check the signature!
 
-			bigint, _ := rand.Int(rand.Reader, big.NewInt(10E6))
+			bigint, _ := rand.Int(rand.Reader, big.NewInt(10e6))
 			certIssued := &x509.Certificate{
 				Version:               cr.Version,
 				BasicConstraintsValid: true,
@@ -131,7 +131,7 @@ func main() {
 				IsCA:                  false,
 				Subject:               cr.Subject,
 				NotBefore:             time.Now(),
-				NotAfter:              time.Now().Add(10E4 * time.Hour),
+				NotAfter:              time.Now().Add(10e4 * time.Hour),
 				// see http://golang.org/pkg/crypto/x509/#KeyUsage
 				KeyUsage:       x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 				ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
