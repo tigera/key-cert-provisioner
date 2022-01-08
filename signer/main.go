@@ -27,6 +27,7 @@ import (
 	"os"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -163,6 +164,7 @@ func main() {
 					Type:    certv1.CertificateApproved,
 					Message: "Approved",
 					Reason:  "Approved",
+					Status:  corev1.ConditionTrue,
 				},
 			}
 			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert.Name, cert, metaV1.UpdateOptions{}); err != nil {
