@@ -76,6 +76,18 @@ clean:
 		   bin \
 		   Makefile.common*
 
+###############################################################################
+# BUILD IMAGE
+###############################################################################
+DOCKER_BUILD+=--pull
+
+# Add --squash argument for CICD pipeline runs only to avoid setting "experimental",
+# for Docker processes on personal machine.
+# set `DOCKER_BUILD=--squash make image` to squash images locally.
+ifdef CI
+DOCKER_BUILD+= --squash
+endif
+
 image: tigera/key-cert-provisioner
 tigera/key-cert-provisioner: tigera/key-cert-provisioner-$(ARCH)
 tigera/key-cert-provisioner-$(ARCH): build
