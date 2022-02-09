@@ -12,7 +12,7 @@ ARCHES=amd64
 RELEASE_BRANCH_PREFIX ?= release
 DEV_TAG_SUFFIX        ?= 0.dev
 
-DEV_REGISTRIES        ?= gcr.io/unique-caldron-775/cnx
+DEV_REGISTRIES        ?= quay.io gcr.io/unique-caldron-775/cnx
 RELEASE_REGISTRIES    ?= quay.io
 BUILD_IMAGES          ?= tigera/key-cert-provisioner
 
