@@ -1,5 +1,5 @@
 version: v1.0
-name: Cut Release
+name: Test Cut Release
 
 execution_time_limit:
   minutes: 30
@@ -25,7 +25,6 @@ global_job_config:
       # Login to docker in order to pull images.
       - docker login --username casey@tigera.io -u _json_key -p "$(cat /home/semaphore/tigera-dev-ci.json)" https://gcr.io
       - checkout
-      - git fetch --unshallow
 
 blocks:
   - name: 'Test Cut Release'
