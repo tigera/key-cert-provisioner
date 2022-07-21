@@ -5,7 +5,7 @@ module github.com/tigera/key-cert-provisioner
 go 1.17
 
 require (
-	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.20.0
 	github.com/sirupsen/logrus v1.9.0
 	k8s.io/api v0.19.6
