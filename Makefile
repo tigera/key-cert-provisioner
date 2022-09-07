@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
-GO_BUILD_VER    ?= v0.73
+GO_BUILD_VER    ?= v0.73.2
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
