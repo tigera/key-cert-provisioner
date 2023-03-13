@@ -17,7 +17,6 @@ package k8s_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -203,7 +202,7 @@ var _ = Describe("Test writing TLS secrets to disk", func() {
 
 	BeforeEach(func() {
 		var err error
-		dir, err = ioutil.TempDir("", "certificate_test.go")
+		dir, err = os.MkdirTemp("", "certificate_test.go")
 		Expect(err).NotTo(HaveOccurred())
 		config = &cfg.Config{
 			CACertPEM:        []byte(caCert),
@@ -216,19 +215,19 @@ var _ = Describe("Test writing TLS secrets to disk", func() {
 
 	It("should write the TLS secrets to file", func() {
 		Expect(k8s.WriteCertificateToFile(config, []byte(cert), x509CSR)).NotTo(HaveOccurred())
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(files).To(HaveLen(3))
 
-		bytes, err := ioutil.ReadFile(filepath.Join(dir, keyName))
+		bytes, err := os.ReadFile(filepath.Join(dir, keyName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(key)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, certName))
+		bytes, err = os.ReadFile(filepath.Join(dir, certName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(cert)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, caCertName))
+		bytes, err = os.ReadFile(filepath.Join(dir, caCertName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(caCert)))
 	})
@@ -236,19 +235,19 @@ var _ = Describe("Test writing TLS secrets to disk", func() {
 	It("should write the TLS secrets to file even if no ca.crt is provided", func() {
 		config.CACertName = ""
 		Expect(k8s.WriteCertificateToFile(config, []byte(cert), x509CSR)).NotTo(HaveOccurred())
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(files).To(HaveLen(2))
 
-		bytes, err := ioutil.ReadFile(filepath.Join(dir, keyName))
+		bytes, err := os.ReadFile(filepath.Join(dir, keyName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(key)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, certName))
+		bytes, err = os.ReadFile(filepath.Join(dir, certName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(cert)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, caCertName))
+		bytes, err = os.ReadFile(filepath.Join(dir, caCertName))
 		Expect(err).To(HaveOccurred())
 		Expect(bytes).To(BeNil())
 	})
@@ -256,19 +255,19 @@ var _ = Describe("Test writing TLS secrets to disk", func() {
 	It("should write the TLS secrets to file even if no ca.crt is provided", func() {
 		config.CACertPEM = []byte("")
 		Expect(k8s.WriteCertificateToFile(config, []byte(cert), x509CSR)).NotTo(HaveOccurred())
-		files, err := ioutil.ReadDir(dir)
+		files, err := os.ReadDir(dir)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(files).To(HaveLen(2))
 
-		bytes, err := ioutil.ReadFile(filepath.Join(dir, keyName))
+		bytes, err := os.ReadFile(filepath.Join(dir, keyName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(key)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, certName))
+		bytes, err = os.ReadFile(filepath.Join(dir, certName))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bytes).To(Equal([]byte(cert)))
 
-		bytes, err = ioutil.ReadFile(filepath.Join(dir, caCertName))
+		bytes, err = os.ReadFile(filepath.Join(dir, caCertName))
 		Expect(err).To(HaveOccurred())
 		Expect(bytes).To(BeNil())
 	})
