@@ -17,7 +17,6 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -136,20 +135,20 @@ func WriteCertificateToFile(cfg *cfg.Config, cert []byte, x509CSR *tls.X509CSR) 
 	log.Infof("the CSR has been signed and approved, writing to certificate location: %v", cfg.EmptyDirLocation)
 
 	// Give other users read permission to this file.
-	err := ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CertName), cert, os.FileMode(0744))
+	err := os.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CertName), cert, os.FileMode(0744))
 	if err != nil {
 		return fmt.Errorf("error while writing to file: %w", err)
 	}
 
 	// Give other users read permission to this file.
-	err = ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.KeyName), x509CSR.PrivateKeyPEM, os.FileMode(0744))
+	err = os.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.KeyName), x509CSR.PrivateKeyPEM, os.FileMode(0744))
 	if err != nil {
 		return fmt.Errorf("error while writing to file: %w", err)
 	}
 
 	// Write the CA Cert to a file if it was provided.
 	if len(cfg.CACertPEM) > 0 && len(cfg.CACertName) > 0 {
-		err = ioutil.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CACertName), cfg.CACertPEM, os.FileMode(0744))
+		err = os.WriteFile(path.Join(cfg.EmptyDirLocation, cfg.CACertName), cfg.CACertPEM, os.FileMode(0744))
 		if err != nil {
 			return fmt.Errorf("error while writing to file: %w", err)
 		}
