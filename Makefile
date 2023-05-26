@@ -1,7 +1,7 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
-GO_BUILD_VER    ?= v0.82
+GO_BUILD_VER    ?= v0.85
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
@@ -60,7 +60,7 @@ else
 endif
 	$(DOCKER_GO_BUILD) \
 		sh -c '$(GIT_CONFIG_SSH) \
-			go build -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
+			go build -buildvcs=false -ldflags="-s -w" -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
 
 build: $(BINDIR)/key-cert-provisioner-$(ARCH)
 
