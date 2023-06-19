@@ -1,6 +1,7 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
+
 GO_BUILD_VER    ?= v0.85
 GIT_USE_SSH      = true
 
@@ -52,13 +53,20 @@ Makefile.common.$(MAKE_BRANCH):
 
 include Makefile.common
 
+# We need CGO to leverage Boring SSL.  However, the cross-compile doesn't support CGO yet.
+ifeq ($(ARCH), $(filter $(ARCH),amd64))
+CGO_ENABLED=1
+else
+CGO_ENABLED=0
+endif
+
 $(BINDIR)/key-cert-provisioner-$(ARCH): $(GO_FILES)
 ifndef RELEASE_BUILD
 	$(eval LDFLAGS:=$(RELEASE_LDFLAGS))
 else
 	$(eval LDFLAGS:=$(BUILD_LDFLAGS))
 endif
-	$(DOCKER_GO_BUILD) \
+	$(DOCKER_RUN) -e CGO_ENABLED=$(CGO_ENABLED) $(CALICO_BUILD) \
 		sh -c '$(GIT_CONFIG_SSH) \
 			go build -buildvcs=false -ldflags="-s -w" -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
 
@@ -91,7 +99,8 @@ endif
 image: tigera/key-cert-provisioner
 tigera/key-cert-provisioner: tigera/key-cert-provisioner-$(ARCH)
 tigera/key-cert-provisioner-$(ARCH): build
-	docker build --pull -t tigera/key-cert-provisioner:latest-$(ARCH) --file ./Dockerfile.$(ARCH) .
+	docker buildx build --pull -t tigera/key-cert-provisioner:latest-$(ARCH) --file ./Dockerfile.$(ARCH) .
+
 ifeq ($(ARCH),amd64)
 	docker tag tigera/key-cert-provisioner:latest-$(ARCH) tigera/key-cert-provisioner:latest
 endif

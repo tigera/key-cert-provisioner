@@ -11,10 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS ubi
 
 FROM scratch
 
 COPY --chown=1001 ./bin/key-cert-provisioner-amd64 /usr/local/bin/key-cert-provisioner
+
+# Copy dependencies from UBI to scratch
+COPY --from=ubi /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+COPY --from=ubi /lib64/libpthread.so.0 /lib64/libpthread.so.0
+COPY --from=ubi /lib64/libc.so.6 /lib64/libc.so.6
 
 USER 1001
 
