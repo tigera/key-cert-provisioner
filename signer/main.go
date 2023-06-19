@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"time"
@@ -61,7 +60,7 @@ func main() {
 	}
 
 	// Read private key in order to sign the csrs.
-	keyPEM, err := ioutil.ReadFile("ca.key")
+	keyPEM, err := os.ReadFile("ca.key")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,7 +76,7 @@ func main() {
 
 	mahKey, _ := key.(*rsa.PrivateKey)
 
-	certPEM, err := ioutil.ReadFile("ca.crt")
+	certPEM, err := os.ReadFile("ca.crt")
 	if err != nil {
 		log.Fatal(err)
 	}

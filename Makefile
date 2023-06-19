@@ -1,7 +1,8 @@
 # Copyright (c) 2021 Tigera, Inc. All rights reserved.
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
-GO_BUILD_VER    ?= v0.78
+
+GO_BUILD_VER    ?= v0.85
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
@@ -67,7 +68,7 @@ else
 endif
 	$(DOCKER_RUN) -e CGO_ENABLED=$(CGO_ENABLED) $(CALICO_BUILD) \
 		sh -c '$(GIT_CONFIG_SSH) \
-			go build -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
+			go build -buildvcs=false -ldflags="-s -w" -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
 
 build: $(BINDIR)/key-cert-provisioner-$(ARCH)
 
@@ -83,10 +84,23 @@ clean:
 		   bin \
 		   Makefile.common*
 
+###############################################################################
+# BUILD IMAGE
+###############################################################################
+DOCKER_BUILD+=--pull
+
+# Add --squash argument for CICD pipeline runs only to avoid setting "experimental",
+# for Docker processes on personal machine.
+# set `DOCKER_BUILD=--squash make image` to squash images locally.
+ifdef CI
+DOCKER_BUILD+= --squash
+endif
+
 image: tigera/key-cert-provisioner
 tigera/key-cert-provisioner: tigera/key-cert-provisioner-$(ARCH)
 tigera/key-cert-provisioner-$(ARCH): build
 	docker buildx build --pull -t tigera/key-cert-provisioner:latest-$(ARCH) --file ./Dockerfile.$(ARCH) .
+
 ifeq ($(ARCH),amd64)
 	docker tag tigera/key-cert-provisioner:latest-$(ARCH) tigera/key-cert-provisioner:latest
 endif

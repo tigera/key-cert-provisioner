@@ -8,3 +8,4 @@ signer/ca.key
 signer/signer
 
 /.idea/
+.vscode/
