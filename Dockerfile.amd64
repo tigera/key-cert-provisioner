@@ -15,13 +15,32 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS ubi
 
 FROM scratch
 
-COPY --chown=1001 ./bin/key-cert-provisioner-amd64 /usr/local/bin/key-cert-provisioner
+COPY --chown=10001:10001 ./bin/key-cert-provisioner-amd64 /usr/bin/key-cert-provisioner
 
-# Copy dependencies from UBI to scratch
+# Because we build our binary with CGO, we need to add the necessary *.so files for dynamic linking.
+# If *.so files are missing, you will see an error saying that your entrypoint cannot be found.
+# The necessary files can be found using the ldd command on the binary.
 COPY --from=ubi /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 COPY --from=ubi /lib64/libpthread.so.0 /lib64/libpthread.so.0
 COPY --from=ubi /lib64/libc.so.6 /lib64/libc.so.6
 
-USER 1001
+# The following libs won't show when doing ldd, but are necessary.
+COPY --from=ubi /lib64/libnss_dns.so.2 /lib64/libnss_dns.so.2
+COPY --from=ubi /lib64/libresolv.so.2 /lib64/libresolv.so.2
+COPY --from=ubi /lib64/libnss_files.so.2 /lib64/libnss_files.so.2
 
-ENTRYPOINT ["/usr/local/bin/key-cert-provisioner"]
+# Copy hostname configuration files from the UBI image so glibc hostname lookups work.
+COPY --from=ubi /etc/hosts /etc/hosts
+COPY --from=ubi /etc/host.conf /etc/host.conf
+COPY --from=ubi /etc/nsswitch.conf /etc/nsswitch.conf
+COPY --from=ubi /etc/networks /etc/networks
+
+COPY --from=ubi /etc/group /etc/group
+COPY --from=ubi /etc/networks /etc/networks
+COPY --from=ubi /etc/passwd /etc/passwd
+COPY --from=ubi /etc/shadow /etc/shadow
+
+
+USER 10001:10001
+
+ENTRYPOINT ["/usr/bin/key-cert-provisioner"]
