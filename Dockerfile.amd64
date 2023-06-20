@@ -15,7 +15,7 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:latest AS ubi
 
 FROM scratch
 
-COPY --chown=10001:10001 ./bin/key-cert-provisioner-amd64 /usr/local/bin/key-cert-provisioner
+COPY --chown=10001:10001 ./bin/key-cert-provisioner-amd64 /usr/bin/key-cert-provisioner
 
 # Because we build our binary with CGO, we need to add the necessary *.so files for dynamic linking.
 # If *.so files are missing, you will see an error saying that your entrypoint cannot be found.
@@ -43,4 +43,4 @@ COPY --from=ubi /etc/shadow /etc/shadow
 
 USER 10001:10001
 
-ENTRYPOINT ["/usr/local/bin/key-cert-provisioner"]
+ENTRYPOINT ["/usr/bin/key-cert-provisioner"]
