@@ -100,7 +100,6 @@ image: tigera/key-cert-provisioner
 tigera/key-cert-provisioner: tigera/key-cert-provisioner-$(ARCH)
 tigera/key-cert-provisioner-$(ARCH): build
 	docker buildx build --pull -t tigera/key-cert-provisioner:latest-$(ARCH) --file ./Dockerfile.$(ARCH) .
-
 ifeq ($(ARCH),amd64)
 	docker tag tigera/key-cert-provisioner:latest-$(ARCH) tigera/key-cert-provisioner:latest
 endif
