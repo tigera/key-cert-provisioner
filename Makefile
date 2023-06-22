@@ -15,7 +15,7 @@ DEV_TAG_SUFFIX        ?= 0.dev
 
 DEV_REGISTRIES        ?= quay.io
 RELEASE_REGISTRIES    ?= quay.io
-BUILD_IMAGES          ?= tigera/key-cert-provisioner
+BUILD_IMAGES          ?= tigera/key-cert-provisioner tigera/test-signer
 
 PUSH_IMAGES           ?= $(foreach registry,$(DEV_REGISTRIES),$(addprefix $(registry)/,$(BUILD_IMAGES)))
 RELEASE_IMAGES        ?= $(foreach registry,$(RELEASE_REGISTRIES),$(addprefix $(registry)/,$(BUILD_IMAGES)))
@@ -27,14 +27,6 @@ EXTRA_DOCKER_ARGS += -e GOPRIVATE=github.com/tigera/*
 
 BUILD_DATE?=$(shell date -u +'%FT%T%z')
 GIT_TAG?=$(shell git describe --tags)
-
-VERSION_FLAGS=-X $(PACKAGE_NAME)/pkg/handler.VERSION=$(GIT_VERSION) \
-	-X $(PACKAGE_NAME)/pkg/handler.BUILD_DATE=$(ES_PROXY_BUILD_DATE) \
-	-X $(PACKAGE_NAME)/pkg/handler.GIT_COMMIT=$(GIT_COMMIT) \
-	-X $(PACKAGE_NAME)/pkg/handler.GIT_TAG=$(GIT_TAG) \
-	-X main.VERSION=$(GIT_VERSION)
-BUILD_LDFLAGS=-ldflags "$(VERSION_FLAGS)"
-RELEASE_LDFLAGS=-ldflags "$(VERSION_FLAGS) -s -w"
 
 ##############################################################################
 # Download and include Makefile.common before anything else
@@ -53,22 +45,29 @@ Makefile.common.$(MAKE_BRANCH):
 
 include Makefile.common
 
-# We need CGO to leverage Boring SSL.  However, the cross-compile doesn't support CGO yet.
-ifeq ($(ARCH), $(filter $(ARCH),amd64))
-CGO_ENABLED=1
-else
-CGO_ENABLED=0
-endif
+# Build a static binary with boring crypto support.
+# This function expects you to pass in two arguments:
+#   1st arg: path/to/input/package(s)
+#   2nd arg: path/to/output/binary
+# Only when arch = amd64 it will use boring crypto to build the binary.
+# Uses LDFLAGS, CGO_LDFLAGS, CGO_CFLAGS when set.
+# Tests that the resulting binary contains boringcrypto symbols.
+define build_static_cgo_boring_binary
+    $(DOCKER_RUN) \
+        -e CGO_ENABLED=1 \
+        -e CGO_LDFLAGS=$(CGO_LDFLAGS) \
+        -e CGO_CFLAGS=$(CGO_CFLAGS) \
+        $(GO_BUILD_IMAGE):$(GO_BUILD_VER) \
+        sh -c '$(GIT_CONFIG_SSH) \
+            GOEXPERIMENT=boringcrypto go build -o $(2)  \
+            -tags fipsstrict,osusergo,netgo$(if $(BUILD_TAGS),$(comma)$(BUILD_TAGS)) -v -buildvcs=false \
+            -ldflags "$(LDFLAGS) -linkmode external -extldflags -static" \
+            $(1) \
+            && go tool nm $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
+endef
 
 $(BINDIR)/key-cert-provisioner-$(ARCH): $(GO_FILES)
-ifndef RELEASE_BUILD
-	$(eval LDFLAGS:=$(RELEASE_LDFLAGS))
-else
-	$(eval LDFLAGS:=$(BUILD_LDFLAGS))
-endif
-	$(DOCKER_RUN) -e CGO_ENABLED=$(CGO_ENABLED) $(CALICO_BUILD) \
-		sh -c '$(GIT_CONFIG_SSH) \
-			go build -buildvcs=false -ldflags="-s -w" -o $@ $(LD_FLAGS) $(PACKAGE_NAME)/cmd'
+	$(call build_static_cgo_boring_binary, cmd/main.go, $@)
 
 build: $(BINDIR)/key-cert-provisioner-$(ARCH)
 
@@ -96,7 +95,7 @@ ifdef CI
 DOCKER_BUILD+= --squash
 endif
 
-image: tigera/key-cert-provisioner
+image: tigera/key-cert-provisioner tigera/test-signer-image
 tigera/key-cert-provisioner: tigera/key-cert-provisioner-$(ARCH)
 tigera/key-cert-provisioner-$(ARCH): build
 	docker buildx build --pull -t tigera/key-cert-provisioner:latest-$(ARCH) --file ./Dockerfile.$(ARCH) .
@@ -106,3 +105,12 @@ ifeq ($(ARCH),amd64)
 endif
 
 cd: image cd-common
+
+bin/test-signer-$(ARCH): $(GO_FILES)
+	$(call build_static_cgo_boring_binary, test-signer/test-signer.go, $@)
+
+tigera/test-signer-image: bin/test-signer-$(ARCH)
+	docker buildx build --pull -t tigera/test-signer:latest-$(ARCH) --file ./test-signer/Dockerfile.$(ARCH) .
+ifeq ($(ARCH),amd64)
+	docker tag tigera/test-signer:latest-$(ARCH) tigera/test-signer:latest
+endif
