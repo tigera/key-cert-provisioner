@@ -13,8 +13,8 @@
 # limitations under the License.
 FROM scratch
 
-COPY --chown=10001:10001 ./bin/key-cert-provisioner-amd64 /usr/bin/key-cert-provisioner
+COPY --chown=10001:10001 ./bin/test-signer-amd64 /usr/bin/test-signer
 
 USER 10001:10001
 
-ENTRYPOINT ["/usr/bin/key-cert-provisioner"]
+ENTRYPOINT ["/usr/bin/test-signer"]
