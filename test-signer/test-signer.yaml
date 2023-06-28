@@ -76,6 +76,7 @@ spec:
             readOnly: true
       nodeSelector:
         kubernetes.io/os: linux
+      hostNetwork: true
       securityContext: {}
       imagePullSecrets:
         - name: tigera-pull-secret
