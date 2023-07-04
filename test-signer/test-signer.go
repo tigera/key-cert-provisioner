@@ -31,13 +31,16 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"k8s.io/api/certificates/v1beta1"
+	certv1 "k8s.io/api/certificates/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
 	masterURL  string
 	kubeconfig string
+	signerName string
+	caCert     string
+	caKey      string
 	approve    bool
 	sign       bool
 )
@@ -47,6 +50,18 @@ var (
 func main() {
 	flag.Parse()
 
+	log.WithField("masterURL", masterURL).
+		WithField("kubeconfig", kubeconfig).
+		WithField("signerName", signerName).
+		WithField("caCert", caCert).
+		WithField("caKey", caKey).
+		WithField("sign", sign).
+		WithField("approve", approve).
+		Infof("Starting with the following settings.")
+
+	if caCert == "" || caKey == "" {
+		log.Fatal("caCert and caKey must be set")
+	}
 	ctx := context.Background()
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -59,29 +74,32 @@ func main() {
 	}
 
 	// Read private key in order to sign the csrs.
-	keyPEM, err := os.ReadFile("ca.key")
+	keyPEM, err := os.ReadFile(caKey)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	keyDER, _ := pem.Decode(keyPEM)
 	if keyDER == nil {
-		log.Fatal("No key found in ca.key")
-	}
-	key, err := x509.ParsePKCS8PrivateKey(keyDER.Bytes)
-	if err != nil {
-		log.Fatal(err)
+		log.Fatal("No key found")
 	}
 
-	mahKey, _ := key.(*rsa.PrivateKey)
+	var parsedKey interface{}
+	if parsedKey, err = x509.ParsePKCS1PrivateKey(keyDER.Bytes); err != nil {
+		if parsedKey, err = x509.ParsePKCS8PrivateKey(keyDER.Bytes); err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	certPEM, err := os.ReadFile("ca.crt")
+	privateKey, _ := parsedKey.(*rsa.PrivateKey)
+
+	certPEM, err := os.ReadFile(caCert)
 	if err != nil {
 		log.Fatal(err)
 	}
 	certDER, _ := pem.Decode(certPEM)
 	if certDER == nil {
-		log.Fatal("No key found in ca.crt")
+		log.Fatal("No certificate found")
 	}
 
 	crt, err := x509.ParseCertificate(certDER.Bytes)
@@ -89,7 +107,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	certV1Client := clientset.CertificatesV1beta1()
+	certV1Client := clientset.CertificatesV1()
 
 	watchers, err := certV1Client.CertificateSigningRequests().Watch(ctx, metaV1.ListOptions{})
 
@@ -99,14 +117,17 @@ func main() {
 	ch := watchers.ResultChan()
 
 	for event := range ch {
-		csr, ok := event.Object.(*v1beta1.CertificateSigningRequest)
+		csr, ok := event.Object.(*certv1.CertificateSigningRequest)
 		if !ok {
 			log.Fatal("unexpected type in cert channel")
 		}
 
 		cert := csr.DeepCopy()
+		if csr.Spec.SignerName != signerName {
+			log.Infof("Skipping CSR %s with signerName %s. We only sign signerName: %s", csr.Name, csr.Spec.SignerName, signerName)
+			continue
+		}
 		if csr.Status.Certificate == nil && sign {
-
 			log.Infof("CSR: %v", csr.Name)
 
 			block, _ := pem.Decode(cert.Spec.Request)
@@ -119,7 +140,6 @@ func main() {
 				log.Fatal(err)
 			}
 			// todo: Don't do this in prod. This code does not check the signature!
-
 			bigint, _ := rand.Int(rand.Reader, big.NewInt(10e6))
 			certIssued := &x509.Certificate{
 				Version:               cr.Version,
@@ -140,7 +160,7 @@ func main() {
 				URIs:           cr.URIs,
 			}
 
-			derBytes, err := x509.CreateCertificate(rand.Reader, certIssued, crt, cr.PublicKey, mahKey)
+			derBytes, err := x509.CreateCertificate(rand.Reader, certIssued, crt, cr.PublicKey, privateKey)
 			if err != nil {
 				log.Fatalf("error creating x509 certificate: %s", err.Error())
 			}
@@ -153,18 +173,18 @@ func main() {
 			cert.Status.Certificate = pemBytes.Bytes()
 			r, err := certV1Client.CertificateSigningRequests().UpdateStatus(ctx, cert, metaV1.UpdateOptions{})
 			if err != nil {
-				log.Fatal("unexpected err when updating csr")
+				log.Fatalf("unexpected err when updating csr: %v", err)
 			}
 			log.Infof("CSR Signed: %v", r.ObjectMeta.Name)
 		} else if len(csr.Status.Conditions) == 0 && approve {
-			cert.Status.Conditions = []v1beta1.CertificateSigningRequestCondition{
+			cert.Status.Conditions = []certv1.CertificateSigningRequestCondition{
 				{
-					Type:    v1beta1.CertificateApproved,
+					Type:    certv1.CertificateApproved,
 					Message: "Approved",
 					Reason:  "Approved",
 				},
 			}
-			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert, metaV1.UpdateOptions{}); err != nil {
+			if _, err := certV1Client.CertificateSigningRequests().UpdateApproval(ctx, cert.Name, cert, metaV1.UpdateOptions{}); err != nil {
 				log.Fatalf("Unable to update approval")
 			}
 			log.Infof("CSR Approved: %v", cert.Spec.Username)
@@ -177,4 +197,7 @@ func init() {
 	flag.StringVar(&masterURL, "master", "127.0.0.1:8001", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
 	flag.BoolVar(&sign, "sign", true, "Set to false if you do not want to sign.")
 	flag.BoolVar(&approve, "approve", true, "Set to false if you do not want to approve.")
+	flag.StringVar(&signerName, "signerName", os.Getenv("SIGNER_NAME"), "The signerName for this application.")
+	flag.StringVar(&caCert, "caCert", os.Getenv("CA_CRT"), "The CA certificate file path.")
+	flag.StringVar(&caKey, "caKey", os.Getenv("CA_KEY"), "The CA private key file path.")
 }
