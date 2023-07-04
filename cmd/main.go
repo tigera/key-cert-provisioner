@@ -27,7 +27,8 @@ import (
 
 func main() {
 	flag.Parse()
-
+	log.SetLevel(log.InfoLevel)
+	log.SetReportCaller(true)
 	// Initiate (and validate) env variables
 	config := cfg.GetConfigOrDie()
 	ctx := context.Background()

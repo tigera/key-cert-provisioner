@@ -3,9 +3,9 @@ bin/
 .go-pkg-cache
 Makefile.common*
 
-signer/ca.crt
-signer/ca.key
-signer/signer
+test-signer/ca.crt
+test-signer/ca.key
+test-signer/signer
 
 /.idea/
 .vscode/
