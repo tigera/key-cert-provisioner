@@ -61,15 +61,15 @@ define build_static_cgo_boring_binary
         sh -c '$(GIT_CONFIG_SSH) \
             GOEXPERIMENT=boringcrypto go build -o $(2)  \
             -tags fipsstrict,osusergo,netgo$(if $(BUILD_TAGS),$(comma)$(BUILD_TAGS)) -v -buildvcs=false \
-            -ldflags "$(LDFLAGS) -linkmode external -extldflags -static" \
+            -ldflags "$(LDFLAGS) -linkmode external -extldflags -static -s -w" \
             $(1) \
-            && go tool nm $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
+            && strings $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
 endef
 
 $(BINDIR)/key-cert-provisioner-$(ARCH): $(GO_FILES)
 	$(call build_static_cgo_boring_binary, cmd/main.go, $@)
 
-build: $(BINDIR)/key-cert-provisioner-$(ARCH)
+build: $(BINDIR)/key-cert-provisioner-$(ARCH) $(BINDIR)/test-signer-$(ARCH)
 
 ut: build
 	$(DOCKER_GO_BUILD) \
