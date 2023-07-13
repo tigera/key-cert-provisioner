@@ -2,7 +2,7 @@
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
 
-GO_BUILD_VER    ?= v0.86
+GO_BUILD_VER    ?= v0.87
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
