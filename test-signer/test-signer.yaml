@@ -47,6 +47,9 @@ spec:
         k8s-app: test-signer
         name: test-signer
     spec:
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
       containers:
       - env:
           - name: CA_KEY
