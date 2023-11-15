@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 
@@ -31,24 +32,38 @@ func main() {
 	log.SetReportCaller(true)
 	// Initiate (and validate) env variables
 	config := cfg.GetConfigOrDie()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.TODO(), config.TimeoutDuration)
+	defer cancel()
+	ch := make(chan int, 1)
+	go func() {
+		// Initiate REST restClient
+		restClient, err := k8s.NewRestClient()
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to create a kubernetes rest restClient")
+		}
 
-	// Initiate REST restClient
-	restClient, err := k8s.NewRestClient()
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to create a kubernetes rest restClient")
-	}
+		csr, err := tls.CreateX509CSR(config)
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to create x509 certificate request")
+		}
 
-	csr, err := tls.CreateX509CSR(config)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to create x509 certificate request")
-	}
+		if err := k8s.SubmitCSR(ctx, config, restClient, csr); err != nil {
+			log.WithError(err).Fatalf("Unable to submit a CSR")
+		}
 
-	if err := k8s.SubmitCSR(ctx, config, restClient, csr); err != nil {
-		log.WithError(err).Fatalf("Unable to submit a CSR")
-	}
+		if err := k8s.WatchCSR(ctx, restClient, config, csr); err != nil {
+			log.WithError(err).Fatalf("Unable to watch CSR")
+		}
+		ch <- 0
+	}()
 
-	if err := k8s.WatchCSR(ctx, restClient, config, csr); err != nil {
-		log.WithError(err).Fatalf("Unable to watch CSR")
+	// Wait for the work to finish. If it takes too we crash-loop to improve the odds of the pod eventually getting up and running.
+	select {
+	case <-ch:
+		log.Info("successfully obtained a certificate")
+		ch <- 0
+	case <-ctx.Done():
+		log.Fatal("timeout expired, exiting program with exit code 1")
+		os.Exit(1)
 	}
 }
