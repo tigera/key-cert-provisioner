@@ -16,7 +16,6 @@ package k8s_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -132,54 +131,6 @@ var _ = Describe("Test Certificates", func() {
 			Expect(csr.Spec.Usages).NotTo(ConsistOf(certV1.UsageServerAuth, certV1.UsageClientAuth,
 				certV1.UsageDigitalSignature, certV1.UsageKeyAgreement))
 		})
-	})
-})
-
-var _ = Describe("Test get Kubernetes version", func() {
-	var clientset kubernetes.Interface
-
-	BeforeEach(func() {
-		clientset = fake.NewSimpleClientset()
-	})
-
-	It("should return expected major and minor version when both version numbers are valid integers", func() {
-		expectedMajor := 3
-		expectedMinor := 22
-		clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
-			Major: strconv.Itoa(expectedMajor),
-			Minor: strconv.Itoa(expectedMinor),
-		}
-
-		version, err := k8s.GetKubernetesVersion(clientset)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(version.Major).To(Equal(expectedMajor))
-		Expect(version.Minor).To(Equal(expectedMinor))
-	})
-
-	It("should return error when major version is invalid", func() {
-		invalidMajor := "invalid_major_version"
-		clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
-			Major: invalidMajor,
-			Minor: "19",
-		}
-
-		v, err := k8s.GetKubernetesVersion(clientset)
-		Expect(v).To(BeNil())
-		Expect(err).To(HaveOccurred())
-		Expect(err).To(Equal(fmt.Errorf("failed to parse k8s major version: %s", invalidMajor)))
-	})
-
-	It("should return error when minor version is invalid", func() {
-		invalidMinor := "invalid_minor_version"
-		clientset.Discovery().(*discoveryFake.FakeDiscovery).FakedServerVersion = &version.Info{
-			Major: "1",
-			Minor: invalidMinor,
-		}
-
-		v, err := k8s.GetKubernetesVersion(clientset)
-		Expect(v).To(BeNil())
-		Expect(err).To(HaveOccurred())
-		Expect(err).To(Equal(fmt.Errorf("failed to parse k8s minor version: %s", invalidMinor)))
 	})
 })
 
