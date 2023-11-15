@@ -72,7 +72,7 @@ func GetConfigOrDie() *Config {
 	}
 
 	return &Config{
-		CSRName:             fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
+		CSRName:             fmt.Sprintf("%s%s:%s", os.Getenv("CSR_NAME_PREFIX"), GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
 		SignatureAlgorithm:  os.Getenv("SIGNATURE_ALGORITHM"),
 		Signer:              GetEnvOrDie("SIGNER"),
 		CommonName:          GetEnvOrDie("COMMON_NAME"),
