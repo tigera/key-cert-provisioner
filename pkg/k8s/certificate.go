@@ -103,6 +103,8 @@ func SubmitCSR(ctx context.Context, config *cfg.Config, restClient *RestClient, 
 			Name: config.CSRName,
 			Labels: map[string]string{
 				"k8s-app": config.AppName,
+				// Add a label so that our controller can filter on CSRs issued by tigera.
+				"operator.tigera.io/csr": config.AppName,
 			}},
 		Spec: certV1.CertificateSigningRequestSpec{
 			Request:    x509CSR.CSR,
