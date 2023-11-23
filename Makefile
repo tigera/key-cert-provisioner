@@ -43,6 +43,7 @@ Makefile.common.$(MAKE_BRANCH):
 	rm -f Makefile.common.*
 	curl --fail $(MAKE_REPO)/Makefile.common -o "$@"
 
+GOFLAGS = -buildvcs=false
 include Makefile.common
 
 # Build a static binary with boring crypto support.
