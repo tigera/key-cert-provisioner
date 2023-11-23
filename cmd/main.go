@@ -34,7 +34,9 @@ func main() {
 	config := cfg.GetConfigOrDie()
 	ctx, cancel := context.WithTimeout(context.TODO(), config.TimeoutDuration)
 	defer cancel()
-	ch := make(chan int, 1)
+
+	// Make a routine that runs and signals the channel. This allows us to end the task if we run out of time.
+	channelWithTimeout := make(chan bool, 1)
 	go func() {
 		// Initiate REST restClient
 		restClient, err := k8s.NewRestClient()
@@ -54,15 +56,17 @@ func main() {
 		if err := k8s.WatchCSR(ctx, restClient, config, csr); err != nil {
 			log.WithError(err).Fatalf("Unable to watch CSR")
 		}
-		ch <- 0
+		// Signal the channel that we completed the task within the designated deadline.
+		channelWithTimeout <- true
 	}()
 
 	// Wait for the work to finish. If it takes too we crash-loop to improve the odds of the pod eventually getting up and running.
 	select {
-	case <-ch:
+	case <-channelWithTimeout:
 		log.Info("successfully obtained a certificate")
-		ch <- 0
+		channelWithTimeout <- true
 	case <-ctx.Done():
+		// If we reach here, it means that we were not able to obtain a certificate within config.TimeoutDuration.
 		log.Fatal("timeout expired, exiting program with exit code 1")
 		os.Exit(1)
 	}
