@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -40,6 +41,7 @@ type Config struct {
 	PrivateKeyAlgorithm string
 	RegisterApiserver   bool
 	AppName             string
+	TimeoutDuration     time.Duration
 }
 
 // GetEnvOrDie convenience method for initializing env.
@@ -70,9 +72,25 @@ func GetConfigOrDie() *Config {
 		}
 		caCertName = GetEnvOrDie("CA_CERT_NAME")
 	}
+	secretName := os.Getenv("SECRET_NAME")
+	var csrName string
+	if secretName == "" {
+		csrName = fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME"))
+	} else {
+		csrName = fmt.Sprintf("%s:%s", secretName, GetEnvOrDie("POD_NAME"))
+	}
+	timeoutDuration := 90 * time.Second
+	timeoutEnv := os.Getenv("TIMEOUT_DURATION")
+	if timeoutEnv != "" {
+		var err error
+		timeoutDuration, err = time.ParseDuration(timeoutEnv)
+		if err != nil {
+			log.Fatalf("unable to convert TIMEOUT env to an integer: %v", err)
+		}
 
+	}
 	return &Config{
-		CSRName:             fmt.Sprintf("%s:%s", GetEnvOrDie("POD_NAMESPACE"), GetEnvOrDie("POD_NAME")),
+		CSRName:             csrName,
 		SignatureAlgorithm:  os.Getenv("SIGNATURE_ALGORITHM"),
 		Signer:              GetEnvOrDie("SIGNER"),
 		CommonName:          GetEnvOrDie("COMMON_NAME"),
@@ -86,5 +104,6 @@ func GetConfigOrDie() *Config {
 		AppName:             GetEnvOrDie("APP_NAME"),
 		PrivateKeyAlgorithm: os.Getenv("KEY_ALGORITHM"),
 		DNSNames:            dnsNames,
+		TimeoutDuration:     timeoutDuration,
 	}
 }
