@@ -43,6 +43,7 @@ Makefile.common.$(MAKE_BRANCH):
 	rm -f Makefile.common.*
 	curl --fail $(MAKE_REPO)/Makefile.common -o "$@"
 
+GOFLAGS = -buildvcs=false
 include Makefile.common
 
 # Build a static binary with boring crypto support.
@@ -60,7 +61,7 @@ define build_static_cgo_boring_binary
         $(GO_BUILD_IMAGE):$(GO_BUILD_VER) \
         sh -c '$(GIT_CONFIG_SSH) \
             GOEXPERIMENT=boringcrypto go build -o $(2)  \
-            -tags fipsstrict,osusergo,netgo$(if $(BUILD_TAGS),$(comma)$(BUILD_TAGS)) -v -buildvcs=false \
+            -tags fipsstrict,osusergo,netgo$(if $(BUILD_TAGS),$(comma)$(BUILD_TAGS)) -v \
             -ldflags "$(LDFLAGS) -linkmode external -extldflags -static -s -w" \
             $(1) \
             && strings $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
