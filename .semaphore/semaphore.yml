@@ -34,6 +34,8 @@ blocks:
       # Only run on branches, not PRs.
       when: "branch !~ '.+'"
     task:
+      secrets:
+        - name: quay-robot-semaphore_v2
       prologue:
         commands:
           # Login to docker in order to pull images.
