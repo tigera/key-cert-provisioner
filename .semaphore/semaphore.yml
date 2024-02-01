@@ -2,12 +2,12 @@ version: v1.0
 name: Key Cert Provisioner
 
 execution_time_limit:
-  minutes: 30
+  minutes: 60
 
 agent:
   machine:
     type: e1-standard-2
-    os_image: ubuntu1804
+    os_image: ubuntu2004
 
 global_job_config:
   secrets:
@@ -15,13 +15,11 @@ global_job_config:
   prologue:
     commands:
       - echo $DOCKERHUB_PASSWORD | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
-      # set experimental for docker on semaphore vm to use `--squash` for building docker images
-      - sudo bash -c 'echo "{\"experimental\":true}" >> /etc/docker/daemon.json'
       - sudo systemctl restart docker
       - checkout
 
 blocks:
-  - name: 'CI'
+  - name: CI
     dependencies: []
     task:
       jobs:
@@ -29,14 +27,13 @@ blocks:
           commands:
             - make ci
 
-  - name: 'Push Images (non-PR builds only)'
-    dependencies: ["CI"]
+  - name: Push Images
+    dependencies:
+      - CI
     skip:
       # Only run on branches, not PRs.
       when: "branch !~ '.+'"
     task:
-      secrets:
-        - name: quay-robot-semaphore_v2
       prologue:
         commands:
           # Login to docker in order to pull images.
