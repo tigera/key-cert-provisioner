@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM scratch
+FROM scratch as source
 
-COPY bin/test-signer-amd64 /usr/bin/test-signer
+ARG TARGETARCH
+
+COPY bin/test-signer-${TARGETARCH} /usr/bin/test-signer
+
+FROM calico/base
+
+COPY --from=source / /
 
 USER 10001:10001
 
