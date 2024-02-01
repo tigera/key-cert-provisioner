@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM scratch
+FROM scratch as source
 
-COPY --chown=10001:10001 ./bin/key-cert-provisioner-amd64 /usr/bin/key-cert-provisioner
+ARG TARGETARCH
+
+COPY bin/key-cert-provisioner-${TARGETARCH} /usr/bin/key-cert-provisioner
+
+FROM calico/base
+
+COPY --from=source / /
 
 USER 10001:10001
 
