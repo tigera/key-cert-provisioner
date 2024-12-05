@@ -28,6 +28,13 @@ EXTRA_DOCKER_ARGS += -e GOPRIVATE=github.com/tigera/*
 BUILD_DATE?=$(shell date -u +'%FT%T%z')
 GIT_TAG?=$(shell git describe --tags)
 
+FIPS ?= false
+
+# v0.91 cannot build the fips image.
+ifeq ($(FIPS),true)
+GO_BUILD_VER=v0.89
+endif
+
 ##############################################################################
 # Download and include Makefile.common before anything else
 #   Additions to EXTRA_DOCKER_ARGS need to happen before the include since
@@ -67,8 +74,19 @@ define build_static_cgo_boring_binary
             && strings $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
 endef
 
+define build_binary
+	$(DOCKER_RUN) \
+		-e CGO_ENABLED=0 \
+		$(CALICO_BUILD) \
+		sh -c '$(GIT_CONFIG_SSH) go build -o $(2) -v -buildvcs=false -ldflags "$(LDFLAGS)" $(1)'
+endef
+
 $(BINDIR)/key-cert-provisioner-$(ARCH): $(GO_FILES)
+ifeq ($(FIPS),true)
 	$(call build_static_cgo_boring_binary, cmd/main.go, $@)
+else
+	$(call build_binary, cmd/main.go, $@)
+endif
 
 build: $(BINDIR)/key-cert-provisioner-$(ARCH) $(BINDIR)/test-signer-$(ARCH)
 
@@ -107,7 +125,7 @@ endif
 cd: image cd-common
 
 bin/test-signer-$(ARCH): $(GO_FILES)
-	$(call build_static_cgo_boring_binary, test-signer/test-signer.go, $@)
+	$(call build_binary, test-signer/test-signer.go, $@)
 
 tigera/test-signer-image: bin/test-signer-$(ARCH)
 	docker buildx build --pull -t tigera/test-signer:latest-$(ARCH) --file ./test-signer/Dockerfile.$(ARCH) .
