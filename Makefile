@@ -2,7 +2,7 @@
 
 PACKAGE_NAME    ?= github.com/tigera/key-cert-provisioner
 
-GO_BUILD_VER    ?= v0.89
+GO_BUILD_VER    ?= v0.91
 GIT_USE_SSH      = true
 
 ORGANIZATION=tigera
@@ -53,7 +53,7 @@ include Makefile.common
 # Only when arch = amd64 it will use boring crypto to build the binary.
 # Uses LDFLAGS, CGO_LDFLAGS, CGO_CFLAGS when set.
 # Tests that the resulting binary contains boringcrypto symbols.
-define build_static_cgo_boring_binary
+define build_cgo_boring_binary
     $(DOCKER_RUN) \
         -e CGO_ENABLED=1 \
         -e CGO_LDFLAGS=$(CGO_LDFLAGS) \
@@ -62,13 +62,13 @@ define build_static_cgo_boring_binary
         sh -c '$(GIT_CONFIG_SSH) \
             GOEXPERIMENT=boringcrypto go build -o $(2)  \
             -tags fipsstrict,osusergo,netgo$(if $(BUILD_TAGS),$(comma)$(BUILD_TAGS)) -v \
-            -ldflags "$(LDFLAGS) -linkmode external -extldflags -static -s -w" \
+            -ldflags "$(LDFLAGS) -s -w" \
             $(1) \
             && strings $(2) | grep '_Cfunc__goboringcrypto_' 1> /dev/null'
 endef
 
 $(BINDIR)/key-cert-provisioner-$(ARCH): $(GO_FILES)
-	$(call build_static_cgo_boring_binary, cmd/main.go, $@)
+	$(call build_cgo_boring_binary, cmd/main.go, $@)
 
 build: $(BINDIR)/key-cert-provisioner-$(ARCH) $(BINDIR)/test-signer-$(ARCH)
 
@@ -107,7 +107,7 @@ endif
 cd: image cd-common
 
 bin/test-signer-$(ARCH): $(GO_FILES)
-	$(call build_static_cgo_boring_binary, test-signer/test-signer.go, $@)
+	$(call build_cgo_boring_binary, test-signer/test-signer.go, $@)
 
 tigera/test-signer-image: bin/test-signer-$(ARCH)
 	docker buildx build --pull -t tigera/test-signer:latest-$(ARCH) --file ./test-signer/Dockerfile.$(ARCH) .
